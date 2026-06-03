@@ -1,0 +1,246 @@
+import { Order, DmConversation, WorkflowRule, ReconciliationEntry } from '@/types';
+
+export const mockOrders: Order[] = [
+  {
+    id: 'ORD-001',
+    customerName: 'Priya Mehta',
+    customerPhone: '+91 98765 43210',
+    customerWhatsapp: '+91 98765 43210',
+    product: 'Hand-embroidered Silk Saree (Emerald Green)',
+    amount: 4800,
+    status: 'shipped',
+    paymentMode: 'upi',
+    paymentId: 'pay_QX7k2mNpL9aR3b',
+    source: 'instagram',
+    createdAt: '2026-05-25T07:30:00',
+    paidAt: '2026-05-25T07:45:00',
+    shipment: {
+      awb: 'SR1234567890',
+      courier: 'Delhivery',
+      trackingUrl: 'https://shiprocket.co/tracking/SR1234567890',
+      triggeredAt: '2026-05-25T08:00:00',
+      status: 'pickup_scheduled',
+    },
+    whatsappConfirmationSent: true,
+    receiptSent: true,
+  },
+  {
+    id: 'ORD-002',
+    customerName: 'Anita Sharma',
+    customerPhone: '+91 87654 32109',
+    customerWhatsapp: '+91 87654 32109',
+    product: 'Banarasi Dupatta Set (Navy Blue)',
+    amount: 12000,
+    status: 'payment_received',
+    paymentMode: 'partial',
+    paymentId: 'pay_QX7k2mNpL9aR3c',
+    source: 'whatsapp',
+    createdAt: '2026-05-25T09:00:00',
+    paidAt: '2026-05-25T09:15:00',
+    partial: {
+      advancePaid: 5000,
+      balanceDue: 7000,
+      balanceDueDate: '2026-06-01T00:00:00',
+      balancePaid: false,
+    },
+    whatsappConfirmationSent: true,
+    receiptSent: false,
+  },
+  {
+    id: 'ORD-003',
+    customerName: 'Rohan Kapoor',
+    customerPhone: '+91 76543 21098',
+    customerWhatsapp: '+91 76543 21098',
+    product: 'Custom Kurta Set (Bulk — 12 pcs)',
+    amount: 18600,
+    status: 'pending_payment',
+    paymentMode: 'upi',
+    source: 'whatsapp',
+    createdAt: '2026-05-25T10:00:00',
+    whatsappConfirmationSent: false,
+    receiptSent: false,
+    notes: 'Negotiated bulk discount. Link sent, awaiting payment.',
+  },
+  {
+    id: 'ORD-004',
+    customerName: 'Deepa Iyer',
+    customerPhone: '+91 65432 10987',
+    customerWhatsapp: '+91 65432 10987',
+    product: 'Chanderi Cotton Saree (Peach)',
+    amount: 2200,
+    status: 'processing',
+    paymentMode: 'card',
+    paymentId: 'pay_QX7k2mNpL9aR3d',
+    source: 'instagram',
+    createdAt: '2026-05-25T11:30:00',
+    paidAt: '2026-05-25T11:45:00',
+    whatsappConfirmationSent: true,
+    receiptSent: true,
+  },
+  {
+    id: 'ORD-005',
+    customerName: 'Kavya Reddy',
+    customerPhone: '+91 54321 09876',
+    customerWhatsapp: '+91 54321 09876',
+    product: 'Lehenga Choli (Bridal Red)',
+    amount: 8500,
+    status: 'delivered',
+    paymentMode: 'upi',
+    paymentId: 'pay_QX7k2mNpL9aR3e',
+    source: 'instagram',
+    createdAt: '2026-05-22T08:00:00',
+    paidAt: '2026-05-22T08:10:00',
+    shipment: {
+      awb: 'SR9876543210',
+      courier: 'Blue Dart',
+      trackingUrl: 'https://shiprocket.co/tracking/SR9876543210',
+      triggeredAt: '2026-05-22T09:00:00',
+      status: 'delivered',
+    },
+    whatsappConfirmationSent: true,
+    receiptSent: true,
+  },
+];
+
+export const mockConversations: DmConversation[] = [
+  {
+    id: 'CONV-001',
+    customerName: 'Sneha Joshi',
+    customerHandle: '@sneha.joshi_',
+    source: 'instagram',
+    stage: 'negotiation',
+    messages: [
+      {
+        id: 'm1',
+        role: 'customer',
+        content: 'Hi! I saw your emerald saree post. Is it available in size 5.5m?',
+        timestamp: '2026-05-25T13:00:00',
+      },
+      {
+        id: 'm2',
+        role: 'agent',
+        content: 'Hi Sneha! 👋 Yes, the Hand-embroidered Silk Saree in Emerald Green is available in 5.5m. It\'s priced at ₹4,800 with free shipping. Would you like to proceed?',
+        timestamp: '2026-05-25T13:00:05',
+      },
+      {
+        id: 'm3',
+        role: 'customer',
+        content: 'Can you do 4500? I\'m a repeat customer',
+        timestamp: '2026-05-25T13:02:00',
+      },
+      {
+        id: 'm4',
+        role: 'agent',
+        content: 'Repeat customers are special to us! 🙏 I\'ve applied a loyalty discount — ₹4,560 (5% off). Shall I send the payment link?',
+        timestamp: '2026-05-25T13:02:08',
+      },
+      {
+        id: 'm5',
+        role: 'agent',
+        content: 'Reply *yes* and I\'ll send the payment link instantly! 💳',
+        timestamp: '2026-05-25T13:02:12',
+      },
+    ],
+  },
+  {
+    id: 'CONV-002',
+    customerName: 'Meera Pillai',
+    customerHandle: '+91 99887 76655',
+    source: 'whatsapp',
+    stage: 'link_sent',
+    linkedOrderId: 'ORD-003',
+    messages: [
+      {
+        id: 'm1',
+        role: 'customer',
+        content: 'Hello, I need 12 kurtas for my office event. Can you do bulk?',
+        timestamp: '2026-05-25T10:00:00',
+      },
+      {
+        id: 'm2',
+        role: 'agent',
+        content: 'Hello! Sure, we do bulk orders. For 12 kurtas our price is ₹1,550/piece = ₹18,600 total. Delivery in 5–7 days. Shall I create your order?',
+        timestamp: '2026-05-25T10:00:10',
+      },
+      {
+        id: 'm3',
+        role: 'customer',
+        content: 'Yes please',
+        timestamp: '2026-05-25T10:05:00',
+      },
+      {
+        id: 'm4',
+        role: 'agent',
+        content: 'Here is your payment link for ₹18,600: https://rzp.io/l/Ekaja-bulk-ORD003\n\nOnce paid, we\'ll begin packing immediately and share the tracking AWB.',
+        timestamp: '2026-05-25T10:05:15',
+      },
+    ],
+  },
+];
+
+export const mockWorkflowRules: WorkflowRule[] = [
+  {
+    id: 'WF-001',
+    name: 'Payment Success — Full Flow',
+    trigger: 'payment_success',
+    actions: [
+      {
+        id: 'A1',
+        type: 'whatsapp_confirmation',
+        enabled: true,
+        config: {
+          template: 'Hi {{customer_name}}! ✅ Your payment of ₹{{amount}} for *{{product}}* (Order #{{order_id}}) is confirmed. We\'ll start packing right away!',
+        },
+      },
+      {
+        id: 'A2',
+        type: 'shiprocket_push',
+        enabled: true,
+        config: {
+          courier: 'auto',
+          notify_customer: 'true',
+        },
+      },
+      {
+        id: 'A3',
+        type: 'receipt_pdf',
+        enabled: true,
+        config: {
+          send_via: 'whatsapp',
+        },
+      },
+      {
+        id: 'A4',
+        type: 'google_sheet',
+        enabled: false,
+        config: {
+          sheet_id: '',
+          sheet_name: 'Orders',
+        },
+      },
+    ],
+  },
+  {
+    id: 'WF-002',
+    name: 'Balance Due Reminder',
+    trigger: 'balance_due',
+    actions: [
+      {
+        id: 'A5',
+        type: 'whatsapp_confirmation',
+        enabled: true,
+        config: {
+          template: 'Hi {{customer_name}}, a gentle reminder — ₹{{balance_due}} is due on {{due_date}} for your order #{{order_id}}. Pay here: {{payment_link}}',
+        },
+      },
+    ],
+  },
+];
+
+export const mockReconciliation: ReconciliationEntry[] = [
+  { orderId: 'ORD-001', customerName: 'Priya Mehta', amount: 4800, paymentMode: 'upi', razorpaySettlement: 4800, matched: true },
+  { orderId: 'ORD-002', customerName: 'Anita Sharma', amount: 5000, paymentMode: 'partial', razorpaySettlement: 5000, matched: true },
+  { orderId: 'ORD-004', customerName: 'Deepa Iyer', amount: 2200, paymentMode: 'card', razorpaySettlement: 2178, matched: true, flag: 'Gateway fee deducted: ₹22' },
+  { orderId: 'ORD-005', customerName: 'Kavya Reddy', amount: 8500, paymentMode: 'upi', razorpaySettlement: 8500, matched: true },
+  { orderId: 'EXT-001', customerName: 'Unknown (UPI Direct)', amount: 3200, paymentMode: 'upi', matched: false, flag: 'UPI paid directly — not via Razorpay. Match manually.' },
+];

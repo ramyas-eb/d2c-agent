@@ -1,0 +1,223 @@
+'use client';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import { LayoutDashboard, Zap, MessageSquare, BarChart3, Settings, Rocket, Pencil, Plus, Circle, Trash2, Pause, Play, ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useWorkflowStore, type SavedFlow } from '@/store/workflows';
+
+// ─── Context menu ─────────────────────────────────────────────────────
+interface CtxPos { x: number; y: number; flowId: string }
+
+function ContextMenu({ pos, onClose }: { pos: CtxPos; onClose: () => void }) {
+  const { flows, setActiveId, renameFlow, setFlowStatus, deleteFlow } = useWorkflowStore();
+  const router = useRouter();
+  const ref = useRef<HTMLDivElement>(null);
+  const flow = flows.find((f) => f.id === pos.flowId);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('keydown', esc); };
+  }, [onClose]);
+
+  if (!flow) return null;
+
+  const item = (icon: React.ReactNode, label: string, onClick: () => void, danger = false) => (
+    <button
+      onClick={() => { onClick(); onClose(); }}
+      className={cn('w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-50 transition-colors text-left', danger ? 'text-red-600 hover:bg-red-50' : 'text-gray-700')}
+    >
+      {icon} {label}
+    </button>
+  );
+
+  return (
+    <div
+      ref={ref}
+      style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 100 }}
+      className="bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[160px] overflow-hidden"
+    >
+      {item(<Pencil className="w-3 h-3" />, 'Edit', () => { setActiveId(flow.id); router.push('/setup'); })}
+      {item(<Pencil className="w-3 h-3" />, 'Rename', () => {
+        const name = window.prompt('Rename workflow', flow.name);
+        if (name?.trim()) renameFlow(flow.id, name.trim());
+      })}
+      <div className="my-1 border-t border-gray-100" />
+      {flow.status === 'live'
+        ? item(<Pause className="w-3 h-3" />, 'Pause', () => setFlowStatus(flow.id, 'paused'))
+        : item(<Play className="w-3 h-3" />, flow.status === 'draft' ? 'Launch' : 'Resume', () => setFlowStatus(flow.id, 'live'))}
+      <div className="my-1 border-t border-gray-100" />
+      {item(<Trash2 className="w-3 h-3" />, 'Delete', () => deleteFlow(flow.id), true)}
+    </div>
+  );
+}
+
+// ─── Flow nav item ────────────────────────────────────────────────────
+function FlowNavItem({ flow, onCtx }: { flow: SavedFlow; onCtx: (e: React.MouseEvent, id: string) => void }) {
+  const { activeId, setActiveId, renameFlow } = useWorkflowStore();
+  const router = useRouter();
+  const [renaming, setRenaming] = useState(false);
+  const [draft, setDraft] = useState(flow.name);
+  const isActive = activeId === flow.id;
+
+  const activate = () => { setActiveId(flow.id); router.push('/setup'); };
+  const commit = () => { const t = draft.trim(); if (t) renameFlow(flow.id, t); else setDraft(flow.name); setRenaming(false); };
+
+  return (
+    <div
+      className={cn('group flex items-center gap-1 px-2 py-1.5 rounded-md transition-colors cursor-pointer', isActive ? 'bg-blue-50' : 'hover:bg-gray-100')}
+      onContextMenu={(e) => { e.preventDefault(); onCtx(e, flow.id); }}
+    >
+      {renaming ? (
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setDraft(flow.name); setRenaming(false); } }}
+          autoFocus
+          onClick={(e) => e.stopPropagation()}
+          className="flex-1 text-xs text-gray-800 bg-white border border-blue-300 rounded px-1.5 py-0.5 outline-none min-w-0"
+        />
+      ) : (
+        <button onClick={activate} className="flex-1 text-left min-w-0">
+          <span className={cn('text-xs block truncate', isActive ? 'text-blue-700 font-medium' : 'text-gray-600')}>
+            {flow.name}
+          </span>
+        </button>
+      )}
+      {!renaming && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setDraft(flow.name); setRenaming(true); }}
+          className="opacity-0 group-hover:opacity-100 flex-shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-opacity"
+          title="Rename"
+        >
+          <Pencil className="w-2.5 h-2.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Workflow sub-nav ─────────────────────────────────────────────────
+function WorkflowSubNav({ onCtx }: { onCtx: (e: React.MouseEvent, id: string) => void }) {
+  const { flows, addFlow, setActiveId } = useWorkflowStore();
+  const router = useRouter();
+
+  const live   = flows.filter((f) => f.status === 'live');
+  const drafts = flows.filter((f) => f.status === 'draft');
+  const paused = flows.filter((f) => f.status === 'paused');
+
+  const handleNew = () => { addFlow('New workflow', '', []); router.push('/setup'); };
+
+  const Section = ({ label, items, dot }: { label: string; items: SavedFlow[]; dot: string }) =>
+    items.length === 0 ? null : (
+      <div>
+        <div className="flex items-center gap-1.5 px-2 pt-2 pb-0.5">
+          <Circle className={cn('w-1.5 h-1.5 flex-shrink-0', dot)} fill="currentColor" />
+          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{label}</span>
+          <span className="text-[10px] text-gray-300 ml-auto">{items.length}</span>
+        </div>
+        {items.map((f) => <FlowNavItem key={f.id} flow={f} onCtx={onCtx} />)}
+      </div>
+    );
+
+  return (
+    <div className="ml-4 border-l border-gray-100 pl-1.5 mt-0.5 pb-1">
+      <Section label="Live"   items={live}   dot="text-green-500" />
+      <Section label="Draft"  items={drafts} dot="text-amber-400" />
+      <Section label="Paused" items={paused} dot="text-gray-400"  />
+      <button onClick={handleNew} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 px-2 py-1.5 mt-1 w-full rounded-md transition-colors">
+        <Plus className="w-3 h-3" /> New workflow
+      </button>
+    </div>
+  );
+}
+
+// ─── Layout ───────────────────────────────────────────────────────────
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isSetup = pathname === '/setup' || pathname.startsWith('/setup/');
+  const [collapsed, setCollapsed] = useState(false);
+  const [ctxPos, setCtxPos] = useState<CtxPos | null>(null);
+
+  const openCtx = (e: React.MouseEvent, flowId: string) => {
+    e.preventDefault();
+    setCtxPos({ x: e.clientX, y: e.clientY, flowId });
+  };
+
+  const showSubNav = isSetup && !collapsed;
+
+  const NavLink = ({ href, icon: Icon, label, accent }: { href: string; icon: React.ElementType; label: string; accent?: boolean }) => {
+    const active = pathname === href || pathname.startsWith(href + '/');
+    return (
+      <Link href={href} className={cn('flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors', active ? 'bg-blue-50 text-blue-700' : accent ? 'text-blue-600 hover:bg-blue-50' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900')}>
+        <Icon className="w-4 h-4" />
+        {label}
+      </Link>
+    );
+  };
+
+  return (
+    <div className="flex h-screen bg-gray-50">
+      {/* Sidebar */}
+      <aside className="w-56 bg-white border-r border-gray-200 flex flex-col">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-blue-600 rounded-md flex items-center justify-center">
+              <Zap className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Shop Ekaja</p>
+              <p className="text-xs text-gray-400">D2C Agent</p>
+            </div>
+          </div>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
+          <NavLink href="/dashboard" icon={LayoutDashboard} label="Orders" />
+          <NavLink href="/agent"     icon={MessageSquare}   label="DM Agent" />
+
+          {/* Workflows — double-click to collapse */}
+          <div
+            onDoubleClick={() => setCollapsed((v) => !v)}
+            title="Double-click to collapse"
+          >
+            <Link
+              href="/setup"
+              className={cn(
+                'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                isSetup ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              )}
+            >
+              <Zap className="w-4 h-4" />
+              Workflows
+              {isSetup && (
+                <ChevronDown className={cn('w-3 h-3 ml-auto transition-transform duration-200', collapsed && '-rotate-90')} />
+              )}
+            </Link>
+          </div>
+          {showSubNav && <WorkflowSubNav onCtx={openCtx} />}
+
+          <NavLink href="/reconciliation" icon={BarChart3} label="Reconciliation" />
+          <NavLink href="/onboarding"     icon={Rocket}    label="Setup wizard" accent />
+        </nav>
+
+        <div className="px-3 py-4 border-t border-gray-100">
+          <div className="flex items-center gap-2 px-3 py-2 text-xs text-gray-400">
+            <Settings className="w-3.5 h-3.5" />
+            <span>Razorpay No-Code · Beta</span>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main */}
+      <main className="flex-1 overflow-hidden">{children}</main>
+
+      {/* Context menu */}
+      {ctxPos && <ContextMenu pos={ctxPos} onClose={() => setCtxPos(null)} />}
+    </div>
+  );
+}

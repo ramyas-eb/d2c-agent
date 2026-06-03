@@ -1,0 +1,123 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ─── Orders ───────────────────────────────────────────────────────────────────
+
+model Order {
+  id                      String    @id @default(cuid())
+  customerName            String
+  customerPhone           String
+  customerWhatsapp        String
+  product                 String
+  amount                  Float
+  status                  String    @default("pending_payment")
+  paymentMode             String    @default("upi")
+  paymentId               String?
+  source                  String    @default("whatsapp")
+  notes                   String?
+
+  // Timestamps
+  createdAt               DateTime  @default(now())
+  paidAt                  DateTime?
+
+  // Partial payment
+  advancePaid             Float?
+  balanceDue              Float?
+  balanceDueDate          DateTime?
+  balancePaid             Boolean   @default(false)
+
+  // Shipment
+  awb                     String?
+  courier                 String?
+  trackingUrl             String?
+  shipmentTriggeredAt     DateTime?
+  shipmentStatus          String?
+
+  // Notifications
+  whatsappConfirmationSent Boolean  @default(false)
+  receiptSent              Boolean  @default(false)
+
+  // Relations
+  conversation            Conversation? @relation(fields: [conversationId], references: [id])
+  conversationId          String?
+  paymentLinks            PaymentLink[]
+  workflowRuns            WorkflowRun[]
+}
+
+// ─── Conversations & Messages ─────────────────────────────────────────────────
+
+model Conversation {
+  id             String    @id @default(cuid())
+  customerName   String
+  customerHandle String
+  source         String    @default("whatsapp")  // instagram | whatsapp
+  stage          String    @default("inquiry")    // inquiry | negotiation | link_sent | paid | shipped
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  messages       Message[]
+  orders         Order[]
+  paymentLinks   PaymentLink[]
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  role           String       // customer | agent | merchant
+  content        String
+  timestamp      DateTime     @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+}
+
+// ─── Payment Links ────────────────────────────────────────────────────────────
+
+model PaymentLink {
+  id             String       @id @default(cuid())
+  razorpayId     String       @unique   // plink_xxx from Razorpay
+  url            String
+  amount         Float
+  status         String       @default("created")  // created | paid | expired | cancelled
+  createdAt      DateTime     @default(now())
+  paidAt         DateTime?
+
+  conversation   Conversation? @relation(fields: [conversationId], references: [id])
+  conversationId String?
+  order          Order?        @relation(fields: [orderId], references: [id])
+  orderId        String?
+}
+
+// ─── Workflows ────────────────────────────────────────────────────────────────
+
+model Workflow {
+  id        String        @id @default(cuid())
+  name      String
+  prompt    String        @default("")
+  status    String        @default("draft")   // live | draft | paused
+  nodes     String        // JSON blob — VisualNode[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  runs      WorkflowRun[]
+}
+
+model WorkflowRun {
+  id         String    @id @default(cuid())
+  trigger    String    // e.g. payment.captured
+  status     String    @default("running")  // running | completed | failed
+  log        String    @default("")         // JSON array of step results
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  workflow   Workflow  @relation(fields: [workflowId], references: [id])
+  workflowId String
+  order      Order?    @relation(fields: [orderId], references: [id])
+  orderId    String?
+}
