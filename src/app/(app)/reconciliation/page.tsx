@@ -18,6 +18,29 @@ export default function ReconciliationPage() {
   const entries = mockReconciliation;
   const [sending, setSending] = useState<Record<string, 'idle' | 'loading' | 'sent'>>({});
 
+  const exportCSV = () => {
+    const rows = [
+      ['Order ID', 'Customer', 'Amount', 'Settled', 'Payment Mode', 'Status', 'Flag'],
+      ...entries.map(e => [
+        e.orderId,
+        e.customerName,
+        e.amount.toString(),
+        (e.razorpaySettlement ?? e.amount).toString(),
+        e.paymentMode.toUpperCase(),
+        e.matched ? 'Matched' : 'Review needed',
+        e.flag ?? '',
+      ]),
+    ];
+    const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `reconciliation-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const sendReminder = async (orderId: string, customerName: string, customerPhone: string, amount: number) => {
     setSending((s) => ({ ...s, [orderId]: 'loading' }));
     try {
@@ -102,7 +125,7 @@ export default function ReconciliationPage() {
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
           <p className="text-sm font-medium text-gray-700">Today's Transactions</p>
-          <button className="text-xs text-blue-600 hover:underline">Export CSV</button>
+          <button onClick={exportCSV} className="text-xs text-blue-600 hover:underline">Export CSV</button>
         </div>
         <div className="divide-y divide-gray-100">
           {entries.map((entry) => (
