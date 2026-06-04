@@ -1,10 +1,9 @@
-import { db } from '@/lib/db';
 import { mockOrders } from '@/lib/mock-data';
 
 export async function GET() {
   try {
+    const { db } = await import('@/lib/db');
     const orders = await db.order.findMany({ orderBy: { createdAt: 'desc' } });
-    // If DB empty or not seeded, return mock data so the demo works
     if (orders.length === 0) return Response.json(mockOrders);
 
     return Response.json(
@@ -40,13 +39,17 @@ export async function GET() {
       }))
     );
   } catch {
-    // DB not available — return mock data
     return Response.json(mockOrders);
   }
 }
 
 export async function POST(req: Request) {
-  const body = await req.json();
-  const order = await db.order.create({ data: body });
-  return Response.json(order, { status: 201 });
+  try {
+    const { db } = await import('@/lib/db');
+    const body = await req.json();
+    const order = await db.order.create({ data: body });
+    return Response.json(order, { status: 201 });
+  } catch {
+    return Response.json({ error: 'DB unavailable' }, { status: 500 });
+  }
 }
