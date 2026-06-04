@@ -1,22 +1,43 @@
 import { execSync } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 import { mockOrders, mockConversations } from '../src/lib/mock-data';
 
-// ── Ensure DB is up to date (upserts below keep seed idempotent) ───────────
+// ── Detect local vs Turso ──────────────────────────────────────────────────
+const remoteUrl = process.env.TURSO_DATABASE_URL;
+const authToken = process.env.TURSO_AUTH_TOKEN;
 const dbPath = path.resolve(process.cwd(), 'dev.db');
-execSync('npx prisma migrate deploy', { stdio: 'inherit' });
 
-// ── Create client AFTER migration has created the db file ──────────────────
+if (!remoteUrl) {
+  execSync('npx prisma migrate deploy', { stdio: 'inherit' });
+}
+
+// ── Create client AFTER migration ──────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { PrismaClient } = require('../src/generated/prisma/client') as typeof import('../src/generated/prisma/client');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { PrismaLibSql } = require('@prisma/adapter-libsql') as typeof import('@prisma/adapter-libsql');
 
-const adapter = new PrismaLibSql({ url: `file:${dbPath}` });
+const adapter = remoteUrl
+  ? new PrismaLibSql({ url: remoteUrl, authToken })
+  : new PrismaLibSql({ url: `file:${dbPath}` });
 const db = new PrismaClient({ adapter } as ConstructorParameters<typeof PrismaClient>[0]);
 
 // ── Seed ───────────────────────────────────────────────────────────────────
 async function main() {
+  // Apply schema to Turso if using remote DB (prisma migrate doesn't support libsql:// URLs)
+  if (remoteUrl) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { createClient } = require('@libsql/client') as typeof import('@libsql/client');
+    const client = createClient({ url: remoteUrl, authToken });
+    const migrationSql = fs.readFileSync(
+      path.join(__dirname, '../prisma/migrations/20260603081150_init/migration.sql'),
+      'utf-8'
+    );
+    await client.executeMultiple(migrationSql);
+    console.log('Applied schema to Turso');
+  }
+
   console.log('Seeding database...');
 
   for (const conv of mockConversations) {

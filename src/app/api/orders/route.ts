@@ -1,41 +1,48 @@
 import { db } from '@/lib/db';
+import { mockOrders } from '@/lib/mock-data';
 
 export async function GET() {
-  const orders = await db.order.findMany({ orderBy: { createdAt: 'desc' } });
+  try {
+    const orders = await db.order.findMany({ orderBy: { createdAt: 'desc' } });
+    // If DB empty or not seeded, return mock data so the demo works
+    if (orders.length === 0) return Response.json(mockOrders);
 
-  // Shape back to the Order type the frontend expects
-  return Response.json(
-    orders.map((o) => ({
-      id: o.id,
-      customerName: o.customerName,
-      customerPhone: o.customerPhone,
-      customerWhatsapp: o.customerWhatsapp,
-      product: o.product,
-      amount: o.amount,
-      status: o.status,
-      paymentMode: o.paymentMode,
-      paymentId: o.paymentId ?? undefined,
-      source: o.source,
-      createdAt: o.createdAt.toISOString(),
-      paidAt: o.paidAt?.toISOString() ?? undefined,
-      notes: o.notes ?? undefined,
-      whatsappConfirmationSent: o.whatsappConfirmationSent,
-      receiptSent: o.receiptSent,
-      partial: o.advancePaid != null ? {
-        advancePaid: o.advancePaid,
-        balanceDue: o.balanceDue!,
-        balanceDueDate: o.balanceDueDate!.toISOString(),
-        balancePaid: o.balancePaid,
-      } : undefined,
-      shipment: o.awb ? {
-        awb: o.awb,
-        courier: o.courier!,
-        trackingUrl: o.trackingUrl!,
-        triggeredAt: o.shipmentTriggeredAt!.toISOString(),
-        status: o.shipmentStatus as 'pending' | 'pickup_scheduled' | 'in_transit' | 'delivered',
-      } : undefined,
-    }))
-  );
+    return Response.json(
+      orders.map((o) => ({
+        id: o.id,
+        customerName: o.customerName,
+        customerPhone: o.customerPhone,
+        customerWhatsapp: o.customerWhatsapp,
+        product: o.product,
+        amount: o.amount,
+        status: o.status,
+        paymentMode: o.paymentMode,
+        paymentId: o.paymentId ?? undefined,
+        source: o.source,
+        createdAt: o.createdAt.toISOString(),
+        paidAt: o.paidAt?.toISOString() ?? undefined,
+        notes: o.notes ?? undefined,
+        whatsappConfirmationSent: o.whatsappConfirmationSent,
+        receiptSent: o.receiptSent,
+        partial: o.advancePaid != null ? {
+          advancePaid: o.advancePaid,
+          balanceDue: o.balanceDue!,
+          balanceDueDate: o.balanceDueDate!.toISOString(),
+          balancePaid: o.balancePaid,
+        } : undefined,
+        shipment: o.awb ? {
+          awb: o.awb,
+          courier: o.courier!,
+          trackingUrl: o.trackingUrl!,
+          triggeredAt: o.shipmentTriggeredAt!.toISOString(),
+          status: o.shipmentStatus as 'pending' | 'pickup_scheduled' | 'in_transit' | 'delivered',
+        } : undefined,
+      }))
+    );
+  } catch {
+    // DB not available — return mock data
+    return Response.json(mockOrders);
+  }
 }
 
 export async function POST(req: Request) {
