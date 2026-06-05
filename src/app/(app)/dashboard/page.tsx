@@ -80,6 +80,90 @@ function WebhookPipeline({ steps }: { steps: WebhookStep[] }) {
   );
 }
 
+// ─── Automation Timeline ─────────────────────────────────────────────
+interface TimelineStep {
+  icon: React.ReactNode;
+  iconBg: string;
+  title: string;
+  time: string | null;
+  sub: string | null;
+}
+
+function AutomationTimeline({ order }: { order: Order }) {
+  const steps: TimelineStep[] = [];
+
+  if (order.paidAt) {
+    steps.push({
+      icon: <CheckCircle className="w-3 h-3 text-green-500" />,
+      iconBg: 'bg-green-50',
+      title: 'Payment confirmed',
+      time: formatTime(order.paidAt),
+      sub: order.paymentId ?? null,
+    });
+  }
+
+  if (order.whatsappConfirmationSent) {
+    steps.push({
+      icon: <MessageCircle className="w-3 h-3 text-green-500" />,
+      iconBg: 'bg-green-50',
+      title: 'WhatsApp confirmation sent',
+      time: null,
+      sub: 'Auto-triggered by workflow',
+    });
+  }
+
+  if (order.shipment) {
+    steps.push({
+      icon: <Truck className="w-3 h-3 text-blue-500" />,
+      iconBg: 'bg-blue-50',
+      title: `Shiprocket · ${order.shipment.courier}`,
+      time: order.shipment.triggeredAt ? formatTime(order.shipment.triggeredAt) : null,
+      sub: `AWB: ${order.shipment.awb}`,
+    });
+  }
+
+  if (order.receiptSent) {
+    steps.push({
+      icon: <CreditCard className="w-3 h-3 text-purple-500" />,
+      iconBg: 'bg-purple-50',
+      title: 'Receipt PDF sent via WhatsApp',
+      time: null,
+      sub: 'Auto-triggered by workflow',
+    });
+  }
+
+  if (steps.length === 0) {
+    return <p className="text-sm text-gray-400 italic">No automation triggered yet</p>;
+  }
+
+  return (
+    <div>
+      {steps.map((step, i) => (
+        <div key={i} className="flex items-start gap-2.5">
+          {/* icon + vertical connector */}
+          <div className="flex flex-col items-center flex-shrink-0" style={{ width: 20 }}>
+            <div className={`w-5 h-5 rounded-full ${step.iconBg} flex items-center justify-center flex-shrink-0`}>
+              {step.icon}
+            </div>
+            {i < steps.length - 1 && (
+              <div className="w-px bg-gray-200 mt-0.5" style={{ height: 22 }} />
+            )}
+          </div>
+          {/* content */}
+          <div className="pb-3 min-w-0">
+            <p className="text-xs font-medium text-gray-700 leading-tight">{step.title}</p>
+            <p className="text-xs text-gray-400 mt-0.5 leading-tight">
+              {step.time && step.sub
+                ? `${step.time} · ${step.sub}`
+                : step.time || step.sub || ''}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Customer WhatsApp Phone ─────────────────────────────────────────
 function MessageStatusIcon({ status }: { status?: CustomerWhatsAppMessage['status'] }) {
   if (status === 'read') return <CheckCheck className="w-3 h-3 text-blue-400 inline ml-1" />;
@@ -368,49 +452,8 @@ function OrderDetailModal({ order, onClose }: { order: Order | null; onClose: ()
 
               {/* Section 3: Automation Log */}
               <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Automation Log</p>
-                {!order.paidAt && !order.whatsappConfirmationSent && !order.shipment && !order.receiptSent ? (
-                  <p className="text-sm text-gray-400 italic">No automation triggered yet</p>
-                ) : (
-                  <div className="space-y-2">
-                    {order.paidAt && (
-                      <div className="flex items-start gap-2">
-                        <CheckCircle className="w-3.5 h-3.5 text-green-500 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="text-xs font-medium text-gray-700">Payment confirmed</p>
-                          <p className="text-xs text-gray-400">{formatTime(order.paidAt)} · {order.paymentId}</p>
-                        </div>
-                      </div>
-                    )}
-                    {order.whatsappConfirmationSent && (
-                      <div className="flex items-start gap-2">
-                        <MessageCircle className="w-3.5 h-3.5 text-green-500 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="text-xs font-medium text-gray-700">WhatsApp confirmation sent</p>
-                          <p className="text-xs text-gray-400">Auto-triggered by workflow</p>
-                        </div>
-                      </div>
-                    )}
-                    {order.shipment && (
-                      <div className="flex items-start gap-2">
-                        <Truck className="w-3.5 h-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="text-xs font-medium text-gray-700">Shiprocket · {order.shipment.courier}</p>
-                          <p className="text-xs text-gray-400">AWB: {order.shipment.awb}</p>
-                        </div>
-                      </div>
-                    )}
-                    {order.receiptSent && (
-                      <div className="flex items-start gap-2">
-                        <CreditCard className="w-3.5 h-3.5 text-purple-500 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="text-xs font-medium text-gray-700">Receipt PDF sent via WhatsApp</p>
-                          <p className="text-xs text-gray-400">Auto-triggered by workflow</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Automation Log</p>
+                <AutomationTimeline order={order} />
               </div>
 
               {/* Section 4: Shipment (conditional) */}
@@ -744,44 +787,7 @@ function OrderRow({ order, onViewDetail, selected, onSelect }: {
                     <Webhook className="w-3.5 h-3.5 text-gray-400" />
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Automation Log</p>
                   </div>
-                  <div className="space-y-2">
-                    {order.paidAt && (
-                      <div className="flex items-start gap-2">
-                        <CheckCircle className="w-3.5 h-3.5 text-green-500 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="text-xs font-medium text-gray-700">Payment confirmed</p>
-                          <p className="text-xs text-gray-400">{formatTime(order.paidAt)} · {order.paymentId}</p>
-                        </div>
-                      </div>
-                    )}
-                    {order.whatsappConfirmationSent && (
-                      <div className="flex items-start gap-2">
-                        <MessageCircle className="w-3.5 h-3.5 text-green-500 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="text-xs font-medium text-gray-700">WhatsApp confirmation sent</p>
-                          <p className="text-xs text-gray-400">Auto-triggered by workflow</p>
-                        </div>
-                      </div>
-                    )}
-                    {order.shipment && (
-                      <div className="flex items-start gap-2">
-                        <Truck className="w-3.5 h-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="text-xs font-medium text-gray-700">Shiprocket · {order.shipment.courier}</p>
-                          <p className="text-xs text-gray-400">AWB: {order.shipment.awb}</p>
-                        </div>
-                      </div>
-                    )}
-                    {order.receiptSent && (
-                      <div className="flex items-start gap-2">
-                        <CreditCard className="w-3.5 h-3.5 text-purple-500 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="text-xs font-medium text-gray-700">Receipt PDF sent via WhatsApp</p>
-                          <p className="text-xs text-gray-400">Auto-triggered by workflow</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <AutomationTimeline order={order} />
                 </div>
               )}
             </div>
