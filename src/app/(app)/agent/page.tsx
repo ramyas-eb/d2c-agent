@@ -164,14 +164,6 @@ function ConversationPane({ conv }: { conv: DmConversation }) {
     }
   };
 
-  const stageColors: Record<string, string> = {
-    inquiry: 'bg-gray-100 text-gray-600',
-    negotiation: 'bg-amber-100 text-amber-600',
-    link_sent: 'bg-blue-100 text-blue-600',
-    paid: 'bg-green-100 text-green-600',
-    shipped: 'bg-purple-100 text-purple-600',
-  };
-
   return (
     <div className="flex flex-col h-full">
       {/* Conv header */}
@@ -271,23 +263,48 @@ function ConversationPane({ conv }: { conv: DmConversation }) {
   );
 }
 
+type ChannelFilter = 'all' | 'instagram' | 'whatsapp';
+
+const stageColors: Record<string, string> = {
+  inquiry: 'bg-gray-100 text-gray-500',
+  negotiation: 'bg-amber-100 text-amber-600',
+  link_sent: 'bg-blue-100 text-blue-600',
+  paid: 'bg-green-100 text-green-600',
+  shipped: 'bg-purple-100 text-purple-600',
+};
+
 export default function AgentPage() {
   const { conversations, loadConversations } = useOrderStore();
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  const [channelFilter, setChannelFilter] = useState<ChannelFilter>('all');
   const selected = conversations.find((c) => c.id === selectedId);
+
+  const filtered = channelFilter === 'all'
+    ? conversations
+    : conversations.filter((c) => c.source === channelFilter);
+
+  const igCount = conversations.filter(c => c.source === 'instagram').length;
+  const waCount = conversations.filter(c => c.source === 'whatsapp').length;
 
   useEffect(() => {
     loadConversations().then(() => {
-      // Select first conversation once loaded
       setSelectedId((prev) => prev ?? useOrderStore.getState().conversations[0]?.id);
     });
   }, []);
+
+  // If selected conv is filtered out, clear it
+  useEffect(() => {
+    if (selected && channelFilter !== 'all' && selected.source !== channelFilter) {
+      const first = filtered[0];
+      setSelectedId(first?.id);
+    }
+  }, [channelFilter]);
 
   return (
     <div className="p-6 h-full max-w-5xl mx-auto">
       <div className="mb-4">
         <h1 className="text-xl font-semibold text-gray-900">DM Agent</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Camera DMs and WhatsApp chats — agent handles inquiry, sends payment link, triggers post-payment chain.</p>
+        <p className="text-sm text-gray-500 mt-0.5">Instagram DMs and WhatsApp chats — agent handles inquiry, sends payment link, triggers post-payment chain.</p>
       </div>
 
       {/* How it works */}
@@ -316,45 +333,104 @@ export default function AgentPage() {
         ))}
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden" style={{ height: '560px' }}>
+      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden" style={{ height: '580px' }}>
         <div className="flex h-full">
-          {/* Conversation list */}
-          <div className="w-52 border-r border-gray-100 flex flex-col">
-            <div className="px-3 py-3 border-b border-gray-100">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Conversations</p>
+          {/* ── Conversation list ── */}
+          <div className="w-56 border-r border-gray-100 flex flex-col">
+
+            {/* Channel filter tabs */}
+            <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-gray-100">
+              {([
+                { key: 'all' as const, label: 'All', count: conversations.length },
+                { key: 'instagram' as const, label: 'Instagram', count: igCount },
+                { key: 'whatsapp' as const, label: 'WhatsApp', count: waCount },
+              ]).map(({ key, label, count }) => (
+                <button
+                  key={key}
+                  onClick={() => setChannelFilter(key)}
+                  className={cn(
+                    'flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-colors',
+                    channelFilter === key
+                      ? key === 'instagram' ? 'bg-pink-100 text-pink-700'
+                        : key === 'whatsapp' ? 'bg-green-100 text-green-700'
+                        : 'bg-blue-100 text-blue-700'
+                      : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+                  )}
+                >
+                  {key === 'instagram' && <Camera className="w-2.5 h-2.5" />}
+                  {key === 'whatsapp' && <MessageCircle className="w-2.5 h-2.5" />}
+                  {key === 'all' ? 'All' : key === 'instagram' ? 'IG' : 'WA'}
+                  <span className={cn(
+                    'text-[10px] font-bold',
+                    channelFilter === key ? '' : 'text-gray-300'
+                  )}>{count}</span>
+                </button>
+              ))}
             </div>
+
+            {/* Conversation items */}
             <div className="flex-1 overflow-y-auto">
-              {conversations.map((conv) => {
+              {filtered.length === 0 && (
+                <div className="flex items-center justify-center h-20 text-xs text-gray-400">
+                  No conversations
+                </div>
+              )}
+              {filtered.map((conv) => {
                 const lastMsg = conv.messages[conv.messages.length - 1];
+                const isIG = conv.source === 'instagram';
                 return (
                   <button
                     key={conv.id}
                     onClick={() => setSelectedId(conv.id)}
                     className={cn(
                       'w-full text-left px-3 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors',
-                      selectedId === conv.id && 'bg-blue-50 border-l-2 border-l-blue-500'
+                      selectedId === conv.id && (isIG
+                        ? 'bg-pink-50 border-l-2 border-l-pink-400'
+                        : 'bg-green-50 border-l-2 border-l-green-400')
                     )}
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      {conv.source === 'instagram'
-                        ? <Camera className="w-3 h-3 text-pink-500" />
-                        : <MessageCircle className="w-3 h-3 text-green-500" />}
-                      <p className="text-xs font-medium text-gray-800 truncate">{conv.customerName}</p>
+                      {/* Channel badge */}
+                      <div className={cn(
+                        'w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0',
+                        isIG ? 'bg-gradient-to-br from-pink-400 to-purple-500' : 'bg-green-500'
+                      )}>
+                        {isIG
+                          ? <Camera className="w-2.5 h-2.5 text-white" />
+                          : <MessageCircle className="w-2.5 h-2.5 text-white" />}
+                      </div>
+                      <p className="text-xs font-medium text-gray-800 truncate flex-1">{conv.customerName}</p>
                     </div>
-                    <p className="text-xs text-gray-400 truncate">{lastMsg?.content}</p>
+                    <div className="flex items-center gap-1.5 pl-7">
+                      <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium', stageColors[conv.stage])}>
+                        {conv.stage.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-400 truncate mt-1 pl-7">{lastMsg?.content}</p>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Chat pane */}
+          {/* ── Chat pane ── */}
           <div className="flex-1 flex flex-col">
             {selected
               ? <ConversationPane conv={selected} />
               : (
-                <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
-                  Select a conversation
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center space-y-2">
+                    <div className="flex gap-3 justify-center">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center">
+                        <Camera className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center">
+                        <MessageCircle className="w-5 h-5 text-white" />
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-400">Select a conversation</p>
+                    <p className="text-xs text-gray-300">Instagram · WhatsApp</p>
+                  </div>
                 </div>
               )}
           </div>

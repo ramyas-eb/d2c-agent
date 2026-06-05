@@ -176,6 +176,151 @@ export const mockConversations: DmConversation[] = [
       },
     ],
   },
+  {
+    id: 'CONV-003',
+    customerName: 'Divya Menon',
+    customerHandle: '@divya.menon.style',
+    source: 'instagram',
+    stage: 'inquiry',
+    messages: [
+      {
+        id: 'm1',
+        role: 'customer',
+        content: 'Hi! Saw your reel on the mustard palazzo set 😍 Is it available?',
+        timestamp: '2026-06-05T09:00:00',
+      },
+      {
+        id: 'm2',
+        role: 'agent',
+        content: 'Hi Divya! 👋 Yes, the Palazzo Set in Mustard Yellow is in stock! Available in S–XXL, priced at ₹2,999 with free shipping. Which size works for you?',
+        timestamp: '2026-06-05T09:00:08',
+      },
+      {
+        id: 'm3',
+        role: 'customer',
+        content: 'Large please! Can I see more photos?',
+        timestamp: '2026-06-05T09:02:00',
+      },
+      {
+        id: 'm4',
+        role: 'agent',
+        content: 'Large is available ✅ Check our highlights for more photos. Ready to place your order?',
+        timestamp: '2026-06-05T09:02:10',
+      },
+    ],
+  },
+  {
+    id: 'CONV-004',
+    customerName: 'Rahul Kapoor',
+    customerHandle: '+91 98765 43210',
+    source: 'whatsapp',
+    stage: 'paid',
+    linkedOrderId: 'ORD-002',
+    messages: [
+      {
+        id: 'm1',
+        role: 'customer',
+        content: 'Hi, I want to order the Cotton Kurti in XL',
+        timestamp: '2026-06-04T14:00:00',
+      },
+      {
+        id: 'm2',
+        role: 'agent',
+        content: 'Hi Rahul! The Cotton Kurti – Printed Floral in XL is ₹1,199. Shall I send the payment link?',
+        timestamp: '2026-06-04T14:00:09',
+      },
+      {
+        id: 'm3',
+        role: 'customer',
+        content: 'Yes send it',
+        timestamp: '2026-06-04T14:01:00',
+      },
+      {
+        id: 'm4',
+        role: 'agent',
+        content: 'Here\'s your payment link for ₹1,199: https://rzp.io/l/Ekaja-ORD002\n\nPay securely and we\'ll ship within 24 hours! 📦',
+        timestamp: '2026-06-04T14:01:15',
+      },
+      {
+        id: 'm5',
+        role: 'customer',
+        content: 'Done! Paid ✅',
+        timestamp: '2026-06-04T14:03:00',
+      },
+      {
+        id: 'm6',
+        role: 'agent',
+        content: 'Payment confirmed 🎉 Your order #ORD-002 is being packed. AWB will be shared within 24 hours!',
+        timestamp: '2026-06-04T14:03:05',
+      },
+    ],
+  },
+  {
+    id: 'CONV-005',
+    customerName: 'Ananya Reddy',
+    customerHandle: '@ananya.reddy_fashion',
+    source: 'instagram',
+    stage: 'link_sent',
+    messages: [
+      {
+        id: 'm1',
+        role: 'customer',
+        content: 'Is the Banarasi saree available in maroon?',
+        timestamp: '2026-06-05T11:00:00',
+      },
+      {
+        id: 'm2',
+        role: 'agent',
+        content: 'Hi Ananya! 🌟 Yes, the Banarasi Silk Saree in Maroon is available. It\'s ₹5,999 with free express shipping — perfect for festivals and weddings!',
+        timestamp: '2026-06-05T11:00:10',
+      },
+      {
+        id: 'm3',
+        role: 'customer',
+        content: 'Yes please! Send the link',
+        timestamp: '2026-06-05T11:02:00',
+      },
+      {
+        id: 'm4',
+        role: 'agent',
+        content: 'Here\'s your payment link for ₹5,999: https://rzp.io/l/Ekaja-CONV005\n\nOnce paid, we\'ll pack and ship within 24 hours 📦',
+        timestamp: '2026-06-05T11:02:15',
+      },
+    ],
+  },
+  {
+    id: 'CONV-006',
+    customerName: 'Pooja Nair',
+    customerHandle: '+91 87654 32109',
+    source: 'whatsapp',
+    stage: 'inquiry',
+    messages: [
+      {
+        id: 'm1',
+        role: 'customer',
+        content: 'Hello, do you ship to Kochi?',
+        timestamp: '2026-06-05T15:30:00',
+      },
+      {
+        id: 'm2',
+        role: 'agent',
+        content: 'Hi Pooja! 👋 Yes, we ship pan-India including Kochi! Delivery in 3–5 days. What were you looking at?',
+        timestamp: '2026-06-05T15:30:07',
+      },
+      {
+        id: 'm3',
+        role: 'customer',
+        content: 'The Anarkali suit in coral pink. What\'s the price?',
+        timestamp: '2026-06-05T15:31:00',
+      },
+      {
+        id: 'm4',
+        role: 'agent',
+        content: 'The Anarkali Suit in Coral Pink is ₹2,999 with free shipping to Kochi 🌸 Available in all sizes. Want to place an order?',
+        timestamp: '2026-06-05T15:31:09',
+      },
+    ],
+  },
 ];
 
 export const mockWorkflowRules: WorkflowRule[] = [
