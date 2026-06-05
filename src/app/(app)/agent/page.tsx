@@ -2,6 +2,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOrderStore } from '@/store/orders';
+import { useProductStore } from '@/store/products';
+import { useAgentSettingsStore } from '@/store/agent-settings';
 import { DmConversation, DmMessage } from '@/types';
 import { formatTime, cn } from '@/lib/utils';
 import {
@@ -102,6 +104,8 @@ function MessageBubble({ msg }: { msg: DmMessage }) {
 
 function ConversationPane({ conv }: { conv: DmConversation }) {
   const { addConversationMessage, sendPaymentLinkFromConv, simulatePaymentFromConv } = useOrderStore();
+  const products = useProductStore(s => s.products);
+  const agentSettings = useAgentSettingsStore(s => s.settings);
   const router = useRouter();
   const [input, setInput] = useState('');
   const [agentTyping, setAgentTyping] = useState(false);
@@ -125,7 +129,7 @@ function ConversationPane({ conv }: { conv: DmConversation }) {
       const res = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history, convStage: conv.stage }),
+        body: JSON.stringify({ messages: history, convStage: conv.stage, products, agentSettings }),
       });
       const data = await res.json();
 

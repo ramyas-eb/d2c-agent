@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import {
   Sparkles, Zap, Truck, MessageCircle, CreditCard, Bell, AlertCircle,
-  Filter, Plus, Trash2, Pencil, Lightbulb, GitBranch, Check, Save,
+  Filter, Plus, Trash2, Pencil, Lightbulb, GitBranch, Check, Save, BookOpen, X,
 } from 'lucide-react';
 import {
   useWorkflowStore,
@@ -104,6 +104,179 @@ function explainFlow(nodes: VisualNode[]): string {
   if (actionPhrases.length === 1) return `Whenever ${when}${condClause} this workflow automatically ${actionPhrases[0]}. No manual work needed.`;
   const last = actionPhrases[actionPhrases.length - 1];
   return `Whenever ${when}${condClause} this workflow automatically ${actionPhrases.slice(0, -1).join(', then ')} — and finally ${last}. No manual work needed.`;
+}
+
+// ─── Template library ─────────────────────────────────────────────────
+interface WorkflowTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: 'fulfilment' | 'payment' | 'retention' | 'vip';
+  nodes: VisualNode[];
+}
+
+const TEMPLATE_LIBRARY: WorkflowTemplate[] = [
+  {
+    id: 'tpl-1',
+    name: 'Post-payment fulfilment',
+    description: 'Ship via Shiprocket + send WhatsApp confirmation + receipt PDF. The standard flow for every paid order.',
+    category: 'fulfilment',
+    nodes: [
+      { id: 't1n1', type: 'trigger', title: 'Payment captured', detail: 'event: payment.captured · Razorpay webhook', iconName: 'Zap', editFields: [{ key: 'event', label: 'Trigger event', type: 'select', value: 'payment.captured', options: TRIGGER_OPTIONS }] },
+      { id: 't1n2', type: 'action', title: 'Shiprocket: Standard order', detail: 'POST /v1/external/orders/create/adhoc · Auto-assign courier', iconName: 'Truck', editFields: [{ key: 'courier', label: 'Courier', type: 'select', value: 'auto', options: COURIER_OPTIONS }] },
+      { id: 't1n3', type: 'action', title: 'WhatsApp: Order Confirmation', detail: 'Template: order_confirmed · auto-triggered', iconName: 'MessageCircle', editFields: [{ key: 'template', label: 'Message template', type: 'select', value: 'order_confirmed', options: WHATSAPP_TEMPLATES }, { key: 'delay', label: 'Send after (minutes)', type: 'number', value: '0' }] },
+      { id: 't1n4', type: 'action', title: 'Send Receipt PDF', detail: 'Auto-generated PDF · delivered via WhatsApp', iconName: 'CreditCard', editFields: [{ key: 'format', label: 'Delivery', type: 'select', value: 'pdf', options: [{ label: 'PDF via WhatsApp', value: 'pdf' }, { label: 'PDF via Email', value: 'email' }] }] },
+    ],
+  },
+  {
+    id: 'tpl-2',
+    name: 'Failed payment retry',
+    description: 'When a payment fails, wait 30 minutes then send a fresh Razorpay link. Recovers 15–25% of failed payments.',
+    category: 'payment',
+    nodes: [
+      { id: 't2n1', type: 'trigger', title: 'Payment failed', detail: 'Fires when a Razorpay payment attempt is declined', iconName: 'AlertCircle', editFields: [{ key: 'event', label: 'Trigger event', type: 'select', value: 'payment.failed', options: TRIGGER_OPTIONS }] },
+      { id: 't2n2', type: 'action', title: 'WhatsApp: Payment Retry Link', detail: 'Sends a fresh Razorpay payment link · 30 min delay', iconName: 'MessageCircle', editFields: [{ key: 'template', label: 'Message template', type: 'select', value: 'payment_retry', options: WHATSAPP_TEMPLATES }, { key: 'delay', label: 'Send after (minutes)', type: 'number', value: '30' }] },
+    ],
+  },
+  {
+    id: 'tpl-3',
+    name: 'Balance due reminder',
+    description: 'Fires 2 days before a partial payment balance is due. Sends WhatsApp reminder with payment link.',
+    category: 'payment',
+    nodes: [
+      { id: 't3n1', type: 'trigger', title: 'Balance due (D-2)', detail: 'Fires 2 days before the balance payment deadline', iconName: 'Bell', editFields: [{ key: 'event', label: 'Trigger event', type: 'select', value: 'balance.due', options: TRIGGER_OPTIONS }] },
+      { id: 't3n2', type: 'action', title: 'WhatsApp: Balance Reminder', detail: 'Template: balance_reminder · includes payment link', iconName: 'Bell', editFields: [{ key: 'template', label: 'Message template', type: 'select', value: 'balance_reminder', options: WHATSAPP_TEMPLATES }, { key: 'delay', label: 'Send after (minutes)', type: 'number', value: '0' }] },
+    ],
+  },
+  {
+    id: 'tpl-4',
+    name: 'VIP high-value flow',
+    description: 'For orders over ₹5,000 — upgrade to priority courier and send a personalised VIP thank you.',
+    category: 'vip',
+    nodes: [
+      { id: 't4n1', type: 'trigger', title: 'Payment captured', detail: 'event: payment.captured · Razorpay webhook', iconName: 'Zap', editFields: [{ key: 'event', label: 'Trigger event', type: 'select', value: 'payment.captured', options: TRIGGER_OPTIONS }] },
+      { id: 't4n2', type: 'condition', title: 'Order value > ₹5,000', detail: 'Proceeds only if this condition is met', iconName: 'Filter', editFields: [{ key: 'field', label: 'Field', type: 'select', value: 'amount', options: [{ label: 'Order value', value: 'amount' }] }, { key: 'operator', label: 'Operator', type: 'select', value: '>', options: [{ label: 'Greater than (>)', value: '>' }] }, { key: 'value', label: 'Value (₹)', type: 'number', value: '5000' }] },
+      { id: 't4n3', type: 'action', title: 'Shiprocket: Priority order', detail: 'POST /v1/external/orders/create/adhoc · Express courier', iconName: 'Truck', editFields: [{ key: 'courier', label: 'Courier', type: 'select', value: 'express', options: COURIER_OPTIONS }] },
+      { id: 't4n4', type: 'action', title: 'WhatsApp: VIP Thank You', detail: 'Template: vip_thankyou · auto-triggered', iconName: 'MessageCircle', editFields: [{ key: 'template', label: 'Message template', type: 'select', value: 'vip_thankyou', options: WHATSAPP_TEMPLATES }, { key: 'delay', label: 'Send after (minutes)', type: 'number', value: '0' }] },
+    ],
+  },
+  {
+    id: 'tpl-5',
+    name: 'Express shipping upsell',
+    description: 'After payment, offer express courier for ₹99 extra. Confirm via WhatsApp before shipping.',
+    category: 'fulfilment',
+    nodes: [
+      { id: 't5n1', type: 'trigger', title: 'Payment captured', detail: 'event: payment.captured · Razorpay webhook', iconName: 'Zap', editFields: [{ key: 'event', label: 'Trigger event', type: 'select', value: 'payment.captured', options: TRIGGER_OPTIONS }] },
+      { id: 't5n2', type: 'action', title: 'WhatsApp: AWB & Tracking', detail: 'Template: awb_sent · standard courier assigned', iconName: 'MessageCircle', editFields: [{ key: 'template', label: 'Message template', type: 'select', value: 'awb_sent', options: WHATSAPP_TEMPLATES }, { key: 'delay', label: 'Send after (minutes)', type: 'number', value: '5' }] },
+    ],
+  },
+  {
+    id: 'tpl-6',
+    name: 'Returning customer reward',
+    description: 'Detect repeat customers and automatically apply a 5% loyalty discount with a VIP message.',
+    category: 'retention',
+    nodes: [
+      { id: 't6n1', type: 'trigger', title: 'Payment captured', detail: 'event: payment.captured · Razorpay webhook', iconName: 'Zap', editFields: [{ key: 'event', label: 'Trigger event', type: 'select', value: 'payment.captured', options: TRIGGER_OPTIONS }] },
+      { id: 't6n2', type: 'condition', title: 'Customer type = Returning', detail: 'Customer has at least 1 previous paid order', iconName: 'Filter', editFields: [{ key: 'field', label: 'Field', type: 'select', value: 'customer_type', options: [{ label: 'Customer type', value: 'customer_type' }] }, { key: 'value', label: 'Value', type: 'select', value: 'returning', options: [{ label: 'Returning customer', value: 'returning' }] }] },
+      { id: 't6n3', type: 'action', title: 'WhatsApp: VIP Thank You', detail: 'Personalised loyalty message with 5% off next order', iconName: 'MessageCircle', editFields: [{ key: 'template', label: 'Message template', type: 'select', value: 'vip_thankyou', options: WHATSAPP_TEMPLATES }, { key: 'delay', label: 'Send after (minutes)', type: 'number', value: '0' }] },
+    ],
+  },
+];
+
+const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
+  fulfilment: { label: 'Fulfilment', color: 'bg-blue-100 text-blue-700' },
+  payment:    { label: 'Payment',    color: 'bg-amber-100 text-amber-700' },
+  retention:  { label: 'Retention', color: 'bg-purple-100 text-purple-700' },
+  vip:        { label: 'VIP',        color: 'bg-yellow-100 text-yellow-700' },
+};
+
+// ─── Template Library Modal ────────────────────────────────────────────
+function TemplateLibrary({ onClose, onUse }: { onClose: () => void; onUse: (tpl: WorkflowTemplate) => void }) {
+  const [filter, setFilter] = useState<string>('all');
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  const shown = filter === 'all' ? TEMPLATE_LIBRARY : TEMPLATE_LIBRARY.filter(t => t.category === filter);
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
+      {/* Modal */}
+      <div ref={ref} className="fixed inset-y-0 right-0 z-50 w-[520px] bg-white shadow-2xl flex flex-col">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+          <div>
+            <p className="text-base font-semibold text-gray-900">Template Library</p>
+            <p className="text-xs text-gray-500 mt-0.5">One-click import — edit after adding</p>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 rounded-full hover:bg-gray-100 flex items-center justify-center">
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+
+        {/* Filter tabs */}
+        <div className="flex gap-1 px-6 py-2.5 border-b border-gray-100 flex-shrink-0">
+          {(['all', 'fulfilment', 'payment', 'retention', 'vip'] as const).map(cat => (
+            <button
+              key={cat}
+              onClick={() => setFilter(cat)}
+              className={cn(
+                'px-3 py-1 rounded-full text-xs font-medium transition-colors',
+                filter === cat ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100'
+              )}
+            >
+              {cat === 'all' ? 'All' : CATEGORY_LABELS[cat].label}
+            </button>
+          ))}
+        </div>
+
+        {/* Template list */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+          {shown.map(tpl => {
+            const cat = CATEGORY_LABELS[tpl.category];
+            return (
+              <div key={tpl.id} className="border border-gray-200 rounded-xl p-4 hover:border-blue-200 hover:bg-blue-50/30 transition-colors group">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-semibold text-gray-900">{tpl.name}</p>
+                      <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-medium', cat.color)}>{cat.label}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 leading-relaxed">{tpl.description}</p>
+                    {/* Node preview chips */}
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {tpl.nodes.map(n => (
+                        <span key={n.id} className={cn(
+                          'text-[10px] px-2 py-0.5 rounded-full border font-medium',
+                          n.type === 'trigger' ? 'bg-green-50 text-green-700 border-green-200' :
+                          n.type === 'condition' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                          'bg-blue-50 text-blue-700 border-blue-200'
+                        )}>
+                          {n.title}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { onUse(tpl); onClose(); }}
+                    className="flex-shrink-0 flex items-center gap-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium transition-colors opacity-0 group-hover:opacity-100"
+                  >
+                    <Plus className="w-3 h-3" /> Use
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
 }
 
 // ─── Canvas constants ──────────────────────────────────────────────
@@ -271,6 +444,7 @@ export default function SetupPage() {
   const [prompt, setPrompt] = useState('');
   const [generating, setGenerating] = useState(false);
   const [showExplain, setShowExplain] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [saved, setSaved] = useState(false);
   const [launched, setLaunched] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -319,6 +493,12 @@ export default function SetupPage() {
   };
 
   const handlePause = () => { if (active) setFlowStatus(active.id, 'paused'); };
+
+  const handleUseTemplate = (tpl: WorkflowTemplate) => {
+    // Clone nodes with fresh IDs to avoid conflicts
+    const freshNodes = tpl.nodes.map(n => ({ ...n, id: `${n.id}-${Date.now()}` }));
+    addFlow(tpl.name, tpl.description, freshNodes);
+  };
 
   const commitTitle = () => {
     const t = titleDraft.trim();
@@ -371,6 +551,12 @@ export default function SetupPage() {
         </div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          <button
+            onClick={() => setShowTemplates(true)}
+            className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+          >
+            <BookOpen className="w-3.5 h-3.5" /> Templates
+          </button>
           <button onClick={() => setShowExplain((v) => !v)} className={cn('flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg transition-colors', showExplain ? 'bg-amber-100 text-amber-700' : 'text-gray-500 hover:bg-gray-100')}>
             <Lightbulb className="w-3.5 h-3.5" /> Explain
           </button>
@@ -449,6 +635,13 @@ export default function SetupPage() {
             </button>
           )}
         </div>
+      )}
+
+      {showTemplates && (
+        <TemplateLibrary
+          onClose={() => setShowTemplates(false)}
+          onUse={handleUseTemplate}
+        />
       )}
 
     </div>
