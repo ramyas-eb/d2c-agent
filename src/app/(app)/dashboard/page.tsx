@@ -7,7 +7,7 @@ import {
   Package, CheckCircle, Truck, Clock, AlertCircle, Camera, MessageCircle,
   ChevronDown, ChevronUp, Zap, CreditCard, Loader2, CheckCheck, Check,
   Webhook, User, FlaskConical, ChevronRight, X, ExternalLink, Copy, Phone, Edit2,
-  Search, Download, RefreshCw
+  Search, Download, RefreshCw, FileText
 } from 'lucide-react';
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -165,6 +165,11 @@ function OrderDetailModal({ order, onClose }: { order: Order | null; onClose: ()
   const [statusLoading, setStatusLoading] = useState(false);
   const [resendFeedback, setResendFeedback] = useState(false);
   const [copyLinkFeedback, setCopyLinkFeedback] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteSaved, setNoteSaved] = useState(false);
+
+  useEffect(() => { setNoteDraft(order?.notes ?? ''); }, [order?.id]);
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -466,6 +471,39 @@ function OrderDetailModal({ order, onClose }: { order: Order | null; onClose: ()
                   </div>
                 </div>
               )}
+
+              {/* Section: Merchant Notes */}
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Internal Notes</p>
+                <textarea
+                  value={noteDraft}
+                  onChange={e => setNoteDraft(e.target.value)}
+                  placeholder="Add a private note about this order…"
+                  rows={3}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-1 focus:ring-blue-300 resize-none"
+                />
+                {noteDraft !== (order?.notes ?? '') && (
+                  <button
+                    onClick={async () => {
+                      if (!order) return;
+                      setSavingNote(true);
+                      await fetch(`/api/orders/${order.id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ notes: noteDraft }),
+                      }).catch(console.warn);
+                      setSavingNote(false);
+                      setNoteSaved(true);
+                      await loadOrders();
+                      setTimeout(() => setNoteSaved(false), 2000);
+                    }}
+                    disabled={savingNote}
+                    className="mt-1.5 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg font-medium transition-colors"
+                  >
+                    {savingNote ? 'Saving…' : noteSaved ? '✓ Saved' : 'Save Note'}
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Footer */}
@@ -510,6 +548,15 @@ function OrderDetailModal({ order, onClose }: { order: Order | null; onClose: ()
               >
                 <CreditCard className="w-3 h-3" />
                 {resendFeedback ? 'Sent!' : 'Resend Receipt'}
+              </button>
+
+              {/* Download Receipt */}
+              <button
+                onClick={() => window.open(`/api/orders/${order.id}/receipt`, '_blank')}
+                className="flex items-center gap-1.5 text-xs border border-gray-200 hover:bg-gray-50 text-gray-700 px-3 py-2 rounded-lg font-medium transition-colors"
+              >
+                <FileText className="w-3 h-3" />
+                Download Receipt
               </button>
 
               {/* Copy Order Link */}

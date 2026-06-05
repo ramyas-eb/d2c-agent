@@ -4,7 +4,7 @@ import { useOrderStore } from '@/store/orders';
 import { Order, DmConversation } from '@/types';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
 import {
-  Search, User, Camera, MessageCircle, ChevronDown, ChevronUp, ShoppingBag,
+  Search, User, Camera, MessageCircle, ChevronDown, ChevronUp, ShoppingBag, RefreshCw,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -151,6 +151,16 @@ function CustomerRow({ customer }: { customer: CustomerProfile }) {
             <div className={cn('w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0', sourceBg(customer.source))}>
               <SourceIcon source={customer.source} />
             </div>
+            {customer.orders.length >= 2 && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                <RefreshCw className="w-2.5 h-2.5" /> Repeat
+              </span>
+            )}
+            {customer.totalSpent > 10000 && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                ⭐ VIP
+              </span>
+            )}
           </div>
           <p className="text-xs text-gray-500 mt-0.5">{customer.phone}</p>
         </div>
@@ -185,7 +195,14 @@ function CustomerRow({ customer }: { customer: CustomerProfile }) {
       {/* Expanded order history */}
       {expanded && (
         <div className="border-t border-gray-100 bg-gray-50 px-5 py-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Order History</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Order History</p>
+            {customer.orders.length > 0 && (
+              <p className="text-xs text-gray-400">
+                Customer since {new Date(customer.orders[customer.orders.length - 1]?.createdAt ?? '').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+              </p>
+            )}
+          </div>
 
           {customer.orders.length === 0 ? (
             <div className="flex items-center gap-2 py-4 text-gray-400">

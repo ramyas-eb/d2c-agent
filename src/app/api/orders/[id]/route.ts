@@ -20,6 +20,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ...(body.paidAt && { paidAt: new Date(body.paidAt) }),
       ...(body.whatsappConfirmationSent !== undefined && { whatsappConfirmationSent: body.whatsappConfirmationSent }),
       ...(body.receiptSent !== undefined && { receiptSent: body.receiptSent }),
+      ...(body.notes !== undefined && { notes: body.notes }),
       ...(body.awb && {
         awb: body.awb,
         courier: body.courier,

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import {
   CheckCircle, Circle, Camera, MessageCircle, Truck, Zap,
@@ -11,9 +11,9 @@ import {
 type ConnectStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
 // ─── Step 1: Connect Channels ─────────────────────────────────────────
-function ConnectChannels({ onDone }: { onDone: () => void }) {
+function ConnectChannels({ onDone, isWhatsAppConnected }: { onDone: () => void; isWhatsAppConnected?: boolean }) {
   const [igStatus, setIgStatus] = useState<ConnectStatus>('idle');
-  const [waStatus, setWaStatus] = useState<ConnectStatus>('idle');
+  const [waStatus, setWaStatus] = useState<ConnectStatus>(isWhatsAppConnected ? 'connected' : 'idle');
 
   const simulate = (setter: (s: ConnectStatus) => void) => {
     setter('connecting');
@@ -115,8 +115,8 @@ function ConnectChannels({ onDone }: { onDone: () => void }) {
 }
 
 // ─── Step 2: Connect Shiprocket ───────────────────────────────────────
-function ConnectShiprocket({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
-  const [status, setStatus] = useState<ConnectStatus>('idle');
+function ConnectShiprocket({ onDone, onBack, isConnected }: { onDone: () => void; onBack: () => void; isConnected?: boolean }) {
+  const [status, setStatus] = useState<ConnectStatus>(isConnected ? 'connected' : 'idle');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -341,7 +341,7 @@ function MessageTemplates({ onDone, onBack }: { onDone: () => void; onBack: () =
 }
 
 // ─── Step 4: Webhook + Test ───────────────────────────────────────────
-function WebhookSetup({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
+function WebhookSetup({ onDone, onBack, razorpayMode }: { onDone: () => void; onBack: () => void; razorpayMode?: string }) {
   const [copied, setCopied] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'running' | 'done'>('idle');
   const webhookUrl = 'https://razorpay.com/d2c-agent/webhook/pay_xxxx';
@@ -370,7 +370,14 @@ function WebhookSetup({ onDone, onBack }: { onDone: () => void; onBack: () => vo
             <Webhook className="w-4 h-4 text-gray-400" />
             <p className="text-xs font-medium text-gray-700">Razorpay Webhook (auto-configured)</p>
           </div>
-          <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Active</span>
+          <div className="flex items-center">
+            <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Active</span>
+            {razorpayMode && (
+              <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium ml-2', razorpayMode === 'live' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
+                {razorpayMode === 'live' ? 'LIVE MODE' : 'TEST MODE'}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
           <code className="flex-1 text-xs text-gray-600 font-mono truncate">{webhookUrl}</code>
@@ -502,6 +509,13 @@ const STEPS = [
 export default function OnboardingPage() {
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
+  const [integrationStatus, setIntegrationStatus] = useState<{
+    razorpay: boolean; shiprocket: boolean; whatsapp: boolean; anthropic: boolean; turso: boolean; razorpayMode: string;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/status').then(r => r.json()).then(setIntegrationStatus).catch(() => {});
+  }, []);
 
   const next = () => {
     if (step < STEPS.length - 1) setStep(s => s + 1);
@@ -522,6 +536,27 @@ export default function OnboardingPage() {
         <h1 className="text-xl font-semibold text-gray-900">Set up your automation</h1>
         <p className="text-sm text-gray-500 mt-0.5">Connect your tools once. Agent handles everything from DM to delivery.</p>
       </div>
+
+      {!done && integrationStatus && (
+        <div className="flex items-center gap-3 mb-6 bg-gray-50 rounded-xl px-4 py-2.5 border border-gray-100">
+          <span className="text-xs text-gray-500 font-medium">Detected:</span>
+          {[
+            { key: 'razorpay', label: 'Razorpay' },
+            { key: 'shiprocket', label: 'Shiprocket' },
+            { key: 'whatsapp', label: 'WhatsApp' },
+            { key: 'anthropic', label: 'Claude AI' },
+          ].map(({ key, label }) => (
+            <span key={key} className={cn(
+              'flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium',
+              integrationStatus[key as keyof typeof integrationStatus]
+                ? 'bg-green-100 text-green-700'
+                : 'bg-gray-100 text-gray-400'
+            )}>
+              {integrationStatus[key as keyof typeof integrationStatus] ? '✓' : '○'} {label}
+            </span>
+          ))}
+        </div>
+      )}
 
       {!done && (
         /* Step indicator */
@@ -568,13 +603,13 @@ export default function OnboardingPage() {
         {done ? (
           <SetupDone />
         ) : step === 0 ? (
-          <ConnectChannels onDone={next} />
+          <ConnectChannels onDone={next} isWhatsAppConnected={integrationStatus?.whatsapp} />
         ) : step === 1 ? (
-          <ConnectShiprocket onDone={next} onBack={back} />
+          <ConnectShiprocket onDone={next} onBack={back} isConnected={integrationStatus?.shiprocket} />
         ) : step === 2 ? (
           <MessageTemplates onDone={next} onBack={back} />
         ) : (
-          <WebhookSetup onDone={next} onBack={back} />
+          <WebhookSetup onDone={next} onBack={back} razorpayMode={integrationStatus?.razorpayMode} />
         )}
       </div>
     </div>

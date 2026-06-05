@@ -332,9 +332,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <NotifBell />
       </div>
 
-      <div className="px-3 py-4 border-t border-gray-100">
-        <div className="flex items-center gap-2 px-3 py-2 text-xs text-gray-400">
-          <Settings className="w-3.5 h-3.5" />
+      <div className="px-3 py-3 border-t border-gray-100 space-y-0.5">
+        <NavLink href="/settings" icon={Settings} label="Settings" />
+        <div className="flex items-center gap-2 px-3 py-1 text-xs text-gray-300">
           <span>Razorpay No-Code · Beta</span>
         </div>
       </div>
