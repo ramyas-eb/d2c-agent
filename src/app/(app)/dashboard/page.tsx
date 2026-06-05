@@ -6,7 +6,8 @@ import { formatCurrency, formatDate, formatTime, cn } from '@/lib/utils';
 import {
   Package, CheckCircle, Truck, Clock, AlertCircle, Camera, MessageCircle,
   ChevronDown, ChevronUp, Zap, CreditCard, Loader2, CheckCheck, Check,
-  Webhook, User, FlaskConical, ChevronRight, X, ExternalLink, Copy, Phone, Edit2
+  Webhook, User, FlaskConical, ChevronRight, X, ExternalLink, Copy, Phone, Edit2,
+  Search, Download, RefreshCw
 } from 'lucide-react';
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -528,7 +529,12 @@ function OrderDetailModal({ order, onClose }: { order: Order | null; onClose: ()
 }
 
 // ─── Order Row ───────────────────────────────────────────────────────
-function OrderRow({ order, onViewDetail }: { order: Order; onViewDetail: (order: Order) => void }) {
+function OrderRow({ order, onViewDetail, selected, onSelect }: {
+  order: Order;
+  onViewDetail: (order: Order) => void;
+  selected: boolean;
+  onSelect: (id: string) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const { simulatePayment, webhookChain, customerMessages } = useOrderStore();
   const status = statusConfig[order.status];
@@ -540,12 +546,21 @@ function OrderRow({ order, onViewDetail }: { order: Order; onViewDetail: (order:
   const allDone = steps?.every(s => s.status === 'done');
 
   return (
-    <div className="border border-gray-200 rounded-xl bg-white overflow-hidden">
+    <div className={cn('border rounded-xl bg-white overflow-hidden', selected ? 'border-blue-300 bg-blue-50' : 'border-gray-200')}>
       {/* Main row */}
       <div
-        className="flex items-center gap-4 px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors"
+        className={cn('flex items-center gap-4 px-5 py-4 cursor-pointer transition-colors', selected ? 'hover:bg-blue-100' : 'hover:bg-gray-50')}
         onClick={() => setExpanded(!expanded)}
       >
+        {/* Checkbox */}
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onSelect(order.id)}
+          onClick={e => e.stopPropagation()}
+          className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 cursor-pointer flex-shrink-0"
+        />
+
         {/* Source badge */}
         <div className={cn(
           'w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0',
@@ -798,7 +813,28 @@ export default function DashboardPage() {
   const [filter, setFilter] = useState<string>('all');
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
 
-  useEffect(() => { loadOrders(); }, []);
+  // Feature 1: Search
+  const [search, setSearch] = useState('');
+
+  // Feature 2: Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Feature 3: Auto-refresh
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [refreshing, setRefreshing] = useState(false);
+
+  const refresh = async () => {
+    setRefreshing(true);
+    await loadOrders();
+    setLastRefreshed(new Date());
+    setRefreshing(false);
+  };
+
+  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    const id = setInterval(refresh, 30000);
+    return () => clearInterval(id);
+  }, []);
 
   const counts = {
     all: orders.length,
@@ -809,6 +845,24 @@ export default function DashboardPage() {
   };
 
   const filtered = filter === 'all' ? orders : orders.filter(o => o.status === filter);
+
+  const searchLower = search.toLowerCase();
+  const displayedOrders = search
+    ? filtered.filter(o =>
+        o.customerName.toLowerCase().includes(searchLower) ||
+        o.id.toLowerCase().includes(searchLower) ||
+        o.product.toLowerCase().includes(searchLower)
+      )
+    : filtered;
+
+  // Bulk helpers
+  const toggleSelect = (id: string) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const selectAll = () => setSelectedIds(new Set(displayedOrders.map(o => o.id)));
+  const clearAll = () => setSelectedIds(new Set());
 
   const todayGMV = orders
     .filter(o => o.paidAt && new Date(o.paidAt).toDateString() === new Date().toDateString())
@@ -821,9 +875,21 @@ export default function DashboardPage() {
     <>
     <div className="p-6 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-gray-900">Orders</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Today, {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">Orders</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Today, {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+        </div>
+        <button
+          onClick={refresh}
+          disabled={refreshing}
+          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <RefreshCw className={cn('w-3.5 h-3.5', refreshing && 'animate-spin')} />
+          <span>
+            {refreshing ? 'Refreshing…' : `Updated ${Math.floor((Date.now() - lastRefreshed.getTime()) / 1000)}s ago`}
+          </span>
+        </button>
       </div>
 
       {/* Sandbox banner */}
@@ -848,31 +914,104 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-1 mb-4 w-fit">
-        {(['all', 'pending_payment', 'payment_received', 'shipped'] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setFilter(s)}
-            className={cn(
-              'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-              filter === s ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-            )}
-          >
-            {s === 'all' ? 'All' : statusConfig[s]?.label}
-            <span className={cn('ml-1.5 text-xs', filter === s ? 'text-blue-200' : 'text-gray-400')}>
-              {counts[s as keyof typeof counts]}
-            </span>
-          </button>
-        ))}
+      {/* Filter tabs with select-all checkbox */}
+      <div className="flex items-center gap-2 mb-4">
+        <input
+          type="checkbox"
+          checked={displayedOrders.length > 0 && selectedIds.size === displayedOrders.length}
+          onChange={() => selectedIds.size === displayedOrders.length ? clearAll() : selectAll()}
+          className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 mr-2 cursor-pointer"
+        />
+        <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-1 w-fit">
+          {(['all', 'pending_payment', 'payment_received', 'shipped'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setFilter(s)}
+              className={cn(
+                'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                filter === s ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+              )}
+            >
+              {s === 'all' ? 'All' : statusConfig[s]?.label}
+              <span className={cn('ml-1.5 text-xs', filter === s ? 'text-blue-200' : 'text-gray-400')}>
+                {counts[s as keyof typeof counts]}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* Search bar */}
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search orders by name, ID, or product…"
+          className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 bg-white"
+        />
+        {search && (
+          <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="mb-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 flex items-center gap-3">
+          <span className="text-xs font-semibold text-blue-800">{selectedIds.size} selected</span>
+          <div className="flex items-center gap-2 ml-auto">
+            <button onClick={clearAll} className="text-xs text-gray-500 hover:text-gray-700">Deselect all</button>
+            <button onClick={selectAll} className="text-xs text-blue-600 hover:text-blue-800">Select all ({displayedOrders.length})</button>
+            <div className="w-px h-3 bg-gray-300" />
+            <button
+              onClick={() => {
+                selectedIds.forEach(id => {
+                  fetch(`/api/orders/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'shipped' }) }).catch(console.warn);
+                });
+                clearAll();
+              }}
+              className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1"
+            >
+              <Truck className="w-3 h-3" /> Mark shipped
+            </button>
+            <button
+              onClick={() => {
+                const rows = [['Order ID', 'Customer', 'Product', 'Amount', 'Status', 'Date']];
+                [...selectedIds].forEach(id => {
+                  const o = orders.find(x => x.id === id);
+                  if (o) rows.push([o.id, o.customerName, o.product, o.amount.toString(), o.status, o.createdAt]);
+                });
+                const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'orders-export.csv'; a.click();
+                URL.revokeObjectURL(a.href);
+                clearAll();
+              }}
+              className="text-xs bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1"
+            >
+              <Download className="w-3 h-3" /> Export CSV
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Orders */}
       <div className="space-y-3">
-        {filtered.length === 0 ? (
+        {displayedOrders.length === 0 ? (
           <div className="text-center py-12 text-gray-400 text-sm">No orders in this category</div>
         ) : (
-          filtered.map(order => <OrderRow key={order.id} order={order} onViewDetail={(o) => setDetailOrder(o)} />)
+          displayedOrders.map(order => (
+            <OrderRow
+              key={order.id}
+              order={order}
+              onViewDetail={(o) => setDetailOrder(o)}
+              selected={selectedIds.has(order.id)}
+              onSelect={toggleSelect}
+            />
+          ))
         )}
       </div>
     </div>

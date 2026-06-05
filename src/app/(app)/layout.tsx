@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
-import { LayoutDashboard, Zap, MessageSquare, BarChart3, Settings, Rocket, Pencil, Plus, Circle, Trash2, Pause, Play, ChevronDown, Menu, X, TrendingUp, Users, Package, Bell } from 'lucide-react';
+import { LayoutDashboard, Zap, MessageSquare, MessageCircle, BarChart3, Settings, Rocket, Pencil, Plus, Circle, Trash2, Pause, Play, ChevronDown, Menu, X, TrendingUp, Users, Package, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWorkflowStore, type SavedFlow } from '@/store/workflows';
 import { useNotificationStore, type AppNotification } from '@/store/notifications';
@@ -298,6 +298,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
         <NavLink href="/dashboard"      icon={LayoutDashboard} label="Orders" />
         <NavLink href="/agent"          icon={MessageSquare}   label="DM Agent" />
+        <NavLink href="/templates"      icon={MessageCircle}   label="WA Templates" />
         <NavLink href="/customers"      icon={Users}           label="Customers" />
         <NavLink href="/products"       icon={Package}         label="Products" />
         <NavLink href="/analytics"      icon={TrendingUp}      label="Analytics" />
