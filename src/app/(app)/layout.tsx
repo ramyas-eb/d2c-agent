@@ -2,9 +2,106 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
-import { LayoutDashboard, Zap, MessageSquare, BarChart3, Settings, Rocket, Pencil, Plus, Circle, Trash2, Pause, Play, ChevronDown, Menu, X, TrendingUp, Users, Package } from 'lucide-react';
+import { LayoutDashboard, Zap, MessageSquare, BarChart3, Settings, Rocket, Pencil, Plus, Circle, Trash2, Pause, Play, ChevronDown, Menu, X, TrendingUp, Users, Package, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWorkflowStore, type SavedFlow } from '@/store/workflows';
+import { useNotificationStore, type AppNotification } from '@/store/notifications';
+
+// ─── Relative time helper ──────────────────────────────────────────────
+function relTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hr ago`;
+  return 'Yesterday';
+}
+
+// ─── Notification bell + panel ────────────────────────────────────────
+const NOTIF_DOT: Record<string, string> = {
+  payment: 'bg-green-400',
+  shipment: 'bg-blue-400',
+  message: 'bg-purple-400',
+  alert: 'bg-red-400',
+  balance: 'bg-orange-400',
+};
+
+function NotifBell() {
+  const { notifications, markRead, markAllRead } = useNotificationStore();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const unread = notifications.filter((n) => !n.read).length;
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    if (open) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+      >
+        <Bell className="w-4 h-4" />
+        Notifications
+        {unread > 0 && (
+          <span className="ml-auto bg-blue-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0">
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute bottom-full left-0 mb-1 w-80 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden z-50">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-gray-900">Notifications</span>
+              {unread > 0 && (
+                <span className="bg-blue-100 text-blue-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">{unread}</span>
+              )}
+            </div>
+            {unread > 0 && (
+              <button onClick={markAllRead} className="text-xs text-blue-600 hover:text-blue-800 transition-colors">
+                Mark all read
+              </button>
+            )}
+          </div>
+
+          {/* List */}
+          <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
+            {notifications.length === 0 ? (
+              <div className="py-8 text-center text-sm text-gray-400">All caught up! 🎉</div>
+            ) : (
+              notifications.map((n) => (
+                <button
+                  key={n.id}
+                  onClick={() => markRead(n.id)}
+                  className={cn(
+                    'w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors',
+                    !n.read && 'bg-blue-50/60'
+                  )}
+                >
+                  <div className={cn('w-2 h-2 rounded-full mt-1.5 flex-shrink-0', NOTIF_DOT[n.type])} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-gray-800 leading-tight">{n.title}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 line-clamp-2 leading-snug">{n.body}</p>
+                    <p className="text-[10px] text-gray-400 mt-1">{relTime(n.time)}</p>
+                  </div>
+                  {!n.read && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0 mt-2" />}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Context menu ─────────────────────────────────────────────────────
 interface CtxPos { x: number; y: number; flowId: string }
@@ -229,6 +326,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <NavLink href="/reconciliation" icon={BarChart3} label="Reconciliation" />
         <NavLink href="/onboarding"     icon={Rocket}    label="Setup wizard" accent />
       </nav>
+
+      <div className="px-3 pb-1">
+        <NotifBell />
+      </div>
 
       <div className="px-3 py-4 border-t border-gray-100">
         <div className="flex items-center gap-2 px-3 py-2 text-xs text-gray-400">
