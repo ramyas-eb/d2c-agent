@@ -18,7 +18,7 @@ interface ProductStore {
   toggleStock: (id: string) => void;
 }
 
-const initialProducts: Product[] = [
+export const initialProducts: Product[] = [
   {
     id: 'P001',
     name: 'Hand-embroidered Silk Saree',

@@ -8,7 +8,7 @@ import { DmConversation, DmMessage } from '@/types';
 import { formatTime, cn } from '@/lib/utils';
 import {
   Camera, MessageCircle, Send, Zap, Link, CheckCircle,
-  Truck, User, Bot, ChevronRight
+  Truck, User, Bot, ChevronRight, Share2, ExternalLink
 } from 'lucide-react';
 
 const AGENT_RESPONSES: Record<string, string[]> = {
@@ -300,11 +300,40 @@ export default function AgentPage() {
     }
   }, [channelFilter]);
 
+  const [catalogCopied, setCatalogCopied] = useState(false);
+
+  function shareCatalog() {
+    const url = `${window.location.origin}/catalog`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCatalogCopied(true);
+      setTimeout(() => setCatalogCopied(false), 2500);
+    });
+  }
+
   return (
     <div className="p-6 h-full max-w-5xl mx-auto">
-      <div className="mb-4">
-        <h1 className="text-xl font-semibold text-gray-900">DM Agent</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Instagram DMs and WhatsApp chats — agent handles inquiry, sends payment link, triggers post-payment chain.</p>
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">DM Agent</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Instagram DMs and WhatsApp chats — agent handles inquiry, sends payment link, triggers post-payment chain.</p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <a
+            href="/catalog"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 rounded-lg px-3 py-1.5 transition-colors"
+          >
+            <ExternalLink className="w-3 h-3" /> Preview
+          </a>
+          <button
+            onClick={shareCatalog}
+            className="flex items-center gap-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-3 py-1.5 transition-colors"
+          >
+            <Share2 className="w-3 h-3" />
+            {catalogCopied ? 'Link copied!' : 'Share Catalog'}
+          </button>
+        </div>
       </div>
 
       {/* How it works */}
