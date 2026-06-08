@@ -8,8 +8,8 @@ import { CheckCircle, MessageCircle, Camera, ShoppingBag, Zap, Link } from 'luci
 const SHOP = {
   name: 'Shop Ekaja',
   tagline: 'Handcrafted Indian ethnic wear',
-  whatsappNumber: '919876543210', // E.164 without +
-  instagramHandle: 'shopekaja',
+  whatsappNumber: '919600064666', // E.164 without +
+  instagramHandle: 'ramyaaa811',
 };
 
 // ── Per-product accent colour ─────────────────────────────────────────
