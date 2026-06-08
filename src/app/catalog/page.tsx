@@ -86,14 +86,26 @@ function ProductCard({ product, index }: { product: Product; index: number }) {
               <MessageCircle className="w-4 h-4" />
               Order via WhatsApp
             </a>
-            <button
-              onClick={handleInstagram}
-              className="flex items-center justify-center gap-2 text-sm font-semibold py-2.5 rounded-xl transition-colors text-white"
-              style={{ background: 'linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)' }}
-            >
-              <Camera className="w-4 h-4" />
-              {igCopied ? '✓ Message copied! Paste in DM' : 'Order via Instagram DM'}
-            </button>
+            <div>
+              <button
+                onClick={handleInstagram}
+                className="w-full flex items-center justify-center gap-2 text-sm font-semibold py-2.5 rounded-xl transition-colors text-white"
+                style={{ background: 'linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)' }}
+              >
+                <Camera className="w-4 h-4" />
+                {igCopied ? '✓ Copied! Tap Message → Paste' : 'Order via Instagram DM'}
+              </button>
+              {igCopied && (
+                <p className="text-[11px] text-center text-pink-500 mt-1.5 font-medium animate-pulse">
+                  Order message copied — tap Message on the profile and paste it 👆
+                </p>
+              )}
+              {!igCopied && (
+                <p className="text-[10px] text-center text-gray-400 mt-1">
+                  Opens profile → tap Message → paste order
+                </p>
+              )}
+            </div>
           </div>
         ) : (
           <button disabled className="w-full text-sm text-gray-400 bg-gray-100 py-2.5 rounded-xl font-medium cursor-not-allowed">
