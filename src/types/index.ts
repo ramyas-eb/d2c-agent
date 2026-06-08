@@ -18,6 +18,11 @@ export interface ShipmentInfo {
   status: 'pending' | 'pickup_scheduled' | 'in_transit' | 'delivered';
 }
 
+export interface ProductVariant {
+  label: string;   // "Size" | "Colour" | "Length" | any custom label
+  options: string[];
+}
+
 export interface Order {
   id: string;
   customerName: string;

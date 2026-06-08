@@ -8,6 +8,7 @@ export interface AgentProduct {
   price: number;
   description: string;
   inStock: boolean;
+  variants?: { label: string; options: string[] }[];
 }
 
 export interface AgentSettings {
@@ -28,7 +29,9 @@ export interface AgentMessage {
 export interface AgentResult {
   message: string | null;
   send_payment_link: boolean;
-  amount: number;           // product price when send_payment_link is true
+  send_cod_order: boolean;
+  amount: number;
+  delivery_address: string;
   fallback: boolean;
 }
 
@@ -44,7 +47,10 @@ export function buildSystemPrompt(products: AgentProduct[], settings: AgentSetti
   const outOfStock = products.filter(p => !p.inStock);
 
   const productLines = inStock.length > 0
-    ? inStock.map(p => `- ${p.name} (SKU: ${p.id}): ₹${p.price.toLocaleString('en-IN')} — ${p.description}`).join('\n')
+    ? inStock.map(p => {
+        const variantLines = (p.variants ?? []).map(v => `    • ${v.label}: ${v.options.join(', ')}`).join('\n');
+        return `- ${p.name} (SKU: ${p.id}): ₹${p.price.toLocaleString('en-IN')} — ${p.description}${variantLines ? '\n' + variantLines : ''}`;
+      }).join('\n')
     : '- No products currently in stock';
 
   const outOfStockLine = outOfStock.length > 0
@@ -72,20 +78,26 @@ POLICIES:
 
 YOUR JOB:
 1. Answer product questions accurately using the catalog above
-2. Guide the customer toward placing an order
-3. When the customer confirms they want to buy, set send_payment_link to true and include the product price in amount
+2. If a product has variants (size, colour, etc.), ask the customer to confirm their preference before sending payment link
+3. When the customer confirms they want to buy AND all variants are selected, set send_payment_link to true and include the product price in amount
 4. If asked about out-of-stock items, apologise and suggest in-stock alternatives
 5. If the customer claims they already paid, do NOT confirm — tell them Razorpay verifies automatically
-6. Keep responses short (1–3 sentences), use occasional emojis
-7. Respond in the same language the customer uses
+6. For COD requests: collect full delivery address (house/flat, area, city, pincode, state) then set send_cod_order to true
+7. Keep responses short (1–3 sentences), use occasional emojis
+8. Respond in the same language the customer uses
 
 RESPONSE FORMAT — always reply with valid JSON, no extra text:
 {
   "message": "your reply to the customer",
   "send_payment_link": true or false,
-  "amount": 0
+  "send_cod_order": true or false,
+  "amount": 0,
+  "delivery_address": ""
 }
-(set amount to the product price when send_payment_link is true, otherwise 0)`;
+Rules:
+- set amount to product price when send_payment_link or send_cod_order is true
+- set delivery_address when send_cod_order is true (full address from conversation)
+- only one of send_payment_link or send_cod_order can be true at a time`;
 }
 
 // Merge consecutive same-role messages; ensure conversation starts with 'user'
@@ -121,19 +133,19 @@ export async function runAgent({
   convStage?: string;
 }): Promise<AgentResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
-    return { message: null, send_payment_link: false, amount: 0, fallback: true };
+    return { message: null, send_payment_link: false, send_cod_order: false, amount: 0, delivery_address: '', fallback: true };
   }
 
   const normalized = normalizeMessages(messages);
   if (normalized.length === 0) {
-    return { message: null, send_payment_link: false, amount: 0, fallback: true };
+    return { message: null, send_payment_link: false, send_cod_order: false, amount: 0, delivery_address: '', fallback: true };
   }
 
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
+      max_tokens: 400,
       system: buildSystemPrompt(products, settings),
       messages: normalized,
     });
@@ -143,18 +155,20 @@ export async function runAgent({
 
     try {
       const parsed = JSON.parse(clean);
-      const canSendLink = convStage !== 'link_sent' && convStage !== 'paid';
+      const canAct = convStage !== 'link_sent' && convStage !== 'paid';
       return {
         message: parsed.message ?? null,
-        send_payment_link: parsed.send_payment_link === true && canSendLink,
+        send_payment_link: parsed.send_payment_link === true && canAct && !parsed.send_cod_order,
+        send_cod_order: parsed.send_cod_order === true && canAct,
         amount: parsed.amount ?? 0,
+        delivery_address: parsed.delivery_address ?? '',
         fallback: false,
       };
     } catch {
-      return { message: text, send_payment_link: false, amount: 0, fallback: false };
+      return { message: text, send_payment_link: false, send_cod_order: false, amount: 0, delivery_address: '', fallback: false };
     }
   } catch (err) {
     console.error('[runAgent]', err);
-    return { message: null, send_payment_link: false, amount: 0, fallback: true };
+    return { message: null, send_payment_link: false, send_cod_order: false, amount: 0, delivery_address: '', fallback: true };
   }
 }

@@ -148,6 +148,31 @@ function ConversationPane({ conv }: { conv: DmConversation }) {
       if (data.send_payment_link) {
         setTimeout(() => sendPaymentLinkFromConv(conv.id), 400);
       }
+
+      if (data.send_cod_order && data.amount > 0) {
+        setTimeout(async () => {
+          try {
+            const r = await fetch('/api/cod-order', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                convId: conv.id,
+                customerName: conv.customerName,
+                customerPhone: conv.customerHandle,
+                amount: data.amount,
+                product: 'COD Order',
+                deliveryAddress: data.delivery_address,
+              }),
+            });
+            const order = await r.json();
+            addConversationMessage(conv.id, 'agent',
+              `✅ COD Order confirmed! Order #${order.orderId} — ₹${data.amount.toLocaleString('en-IN')} to be collected on delivery. We'll ship within 24 hours 📦`
+            );
+          } catch {
+            addConversationMessage(conv.id, 'agent', '✅ COD order confirmed! We\'ll ship within 24 hours 📦');
+          }
+        }, 400);
+      }
     } catch {
       setAgentTyping(false);
       useFallback(text, conv.id, conv.stage);
