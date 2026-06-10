@@ -89,15 +89,15 @@ function AutomationCard({
         <button
           onClick={onToggle}
           className={cn(
-            'relative w-8 h-4 rounded-full transition-colors flex-shrink-0 mt-0.5',
+            'relative w-10 h-[22px] rounded-full transition-colors flex-shrink-0',
             auto.enabled ? 'bg-green-500' : 'bg-gray-200'
           )}
           role="switch"
           aria-checked={auto.enabled}
         >
           <span className={cn(
-            'absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform',
-            auto.enabled ? 'translate-x-4' : 'translate-x-0.5'
+            'absolute top-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200',
+            auto.enabled ? 'translate-x-[22px]' : 'translate-x-[3px]'
           )} />
         </button>
       </div>

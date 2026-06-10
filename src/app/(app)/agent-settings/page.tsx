@@ -99,10 +99,10 @@ export default function ConfigureAgentPage() {
               </div>
               <button
                 onClick={() => handleChange('codAvailable', !settings.codAvailable)}
-                className={`relative w-10 h-6 rounded-full transition-colors ${settings.codAvailable ? 'bg-blue-600' : 'bg-gray-200'}`}
+                className={`relative w-10 h-[22px] rounded-full transition-colors ${settings.codAvailable ? 'bg-blue-600' : 'bg-gray-200'}`}
                 role="switch" aria-checked={settings.codAvailable}
               >
-                <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${settings.codAvailable ? 'translate-x-5' : 'translate-x-1'}`} />
+                <span className={`absolute top-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${settings.codAvailable ? 'translate-x-[22px]' : 'translate-x-[3px]'}`} />
               </button>
             </div>
           </div>
