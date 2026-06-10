@@ -88,17 +88,23 @@ function AutomationCard({
         </div>
         <button
           onClick={onToggle}
-          className={cn(
-            'relative w-10 h-[22px] rounded-full transition-colors flex-shrink-0',
-            auto.enabled ? 'bg-green-500' : 'bg-gray-200'
-          )}
           role="switch"
           aria-checked={auto.enabled}
+          style={{
+            position: 'relative', display: 'inline-block', flexShrink: 0,
+            width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+            backgroundColor: auto.enabled ? '#22c55e' : '#d1d5db',
+            transition: 'background-color 0.2s',
+          }}
         >
-          <span className={cn(
-            'absolute top-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200',
-            auto.enabled ? 'translate-x-[22px]' : 'translate-x-[3px]'
-          )} />
+          <span style={{
+            position: 'absolute', top: 2,
+            left: auto.enabled ? 22 : 2,
+            width: 20, height: 20, borderRadius: '50%',
+            backgroundColor: 'white',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+            transition: 'left 0.2s',
+          }} />
         </button>
       </div>
 
@@ -155,34 +161,68 @@ function AutomationCard({
   );
 }
 
-const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 outline-none focus:ring-1 focus:ring-blue-300 bg-white';
+type BuildState = 'idle' | 'input' | 'building' | 'preview';
+
+function buildFromDescription(desc: string): Omit<Automation, 'id'> {
+  const lower = desc.toLowerCase();
+
+  // Extract timing hint from description
+  const timingMatch = lower.match(/(\d+)\s*(hr|hour|min|minute|day)/);
+  const timing = timingMatch
+    ? `${timingMatch[1]} ${timingMatch[2]}${Number(timingMatch[1]) > 1 ? 's' : ''} after`
+    : 'Immediately';
+
+  // Derive a short trigger label
+  const triggerKeywords: [RegExp, string][] = [
+    [/refund|return/, 'Customer requests refund'],
+    [/review|feedback/, 'Order delivered'],
+    [/abandon|cart/, 'Cart abandoned'],
+    [/birthday|anniversar/, 'Customer birthday'],
+    [/reorder|buy again|repurchase/, 'Post-purchase follow-up'],
+    [/referral|refer a friend/, 'Customer referral'],
+  ];
+  const matched = triggerKeywords.find(([re]) => re.test(lower));
+  const trigger = matched ? matched[1] : desc.split('.')[0].trim();
+
+  // Build the WA message
+  const message = `Hi {name}! 👋\n\n${desc.trim().replace(/^(when|if|after)\s+\S+\s+/i, '')}`;
+
+  return { trigger, timing, message, enabled: true };
+}
 
 export default function ReachPage() {
   const [automations, setAutomations] = useState<Automation[]>(DEFAULT_AUTOMATIONS);
-  const [building, setBuilding] = useState(false);
-  const [newTrigger, setNewTrigger] = useState('');
-  const [newTiming, setNewTiming] = useState('');
-  const [newMessage, setNewMessage] = useState('');
+  const [buildState, setBuildState] = useState<BuildState>('idle');
+  const [description, setDescription] = useState('');
+  const [preview, setPreview] = useState<Omit<Automation, 'id'> | null>(null);
+  const [editingPreview, setEditingPreview] = useState(false);
 
   const toggle = (id: string) =>
     setAutomations(prev => prev.map(a => a.id === id ? { ...a, enabled: !a.enabled } : a));
-
   const save = (id: string, message: string) =>
     setAutomations(prev => prev.map(a => a.id === id ? { ...a, message } : a));
 
-  const addNew = () => {
-    if (!newTrigger.trim() || !newMessage.trim()) return;
-    setAutomations(prev => [...prev, {
-      id: `custom_${Date.now()}`,
-      trigger: newTrigger.trim(),
-      timing: newTiming.trim() || 'Immediately',
-      message: newMessage.trim(),
-      enabled: true,
-    }]);
-    setNewTrigger('');
-    setNewTiming('');
-    setNewMessage('');
-    setBuilding(false);
+  const handleBuild = () => {
+    if (!description.trim()) return;
+    setBuildState('building');
+    setTimeout(() => {
+      setPreview(buildFromDescription(description));
+      setBuildState('preview');
+    }, 800);
+  };
+
+  const handleLaunch = () => {
+    if (!preview) return;
+    setAutomations(prev => [...prev, { ...preview, id: `custom_${Date.now()}` }]);
+    setDescription('');
+    setPreview(null);
+    setBuildState('idle');
+  };
+
+  const handleDiscard = () => {
+    setDescription('');
+    setPreview(null);
+    setBuildState('idle');
   };
 
   const activeCount = automations.filter(a => a.enabled).length;
@@ -211,9 +251,10 @@ export default function ReachPage() {
 
         {/* Build a custom automation */}
         <div className="mt-6 pt-5 border-t border-gray-100">
-          {!building ? (
+
+          {buildState === 'idle' && (
             <button
-              onClick={() => setBuilding(true)}
+              onClick={() => setBuildState('input')}
               className="flex items-center gap-3 w-full px-4 py-3.5 bg-white border border-gray-200 hover:border-blue-200 hover:bg-blue-50/40 rounded-2xl transition-colors group text-left"
             >
               <div className="w-8 h-8 rounded-xl bg-gray-100 group-hover:bg-blue-100 flex items-center justify-center flex-shrink-0 transition-colors">
@@ -221,75 +262,123 @@ export default function ReachPage() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-700 group-hover:text-blue-700 transition-colors">Build a custom automation</p>
-                <p className="text-xs text-gray-400 mt-0.5">Create your own trigger and message</p>
+                <p className="text-xs text-gray-400 mt-0.5">Describe what you want and we'll set it up</p>
               </div>
               <Plus className="w-4 h-4 text-gray-300 group-hover:text-blue-400 transition-colors flex-shrink-0" />
             </button>
-          ) : (
+          )}
+
+          {buildState === 'input' && (
             <div className="bg-white border border-blue-200 rounded-2xl p-5 space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-gray-900">New automation</p>
-                <button onClick={() => setBuilding(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <p className="text-sm font-semibold text-gray-900">What do you want to automate?</p>
+                <button onClick={handleDiscard} className="text-gray-400 hover:text-gray-600 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <textarea
+                autoFocus
+                rows={3}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:ring-1 focus:ring-blue-300 bg-gray-50 resize-none leading-relaxed"
+                placeholder="e.g. When a customer hasn't paid after 3 hours, send them a gentle reminder with a new payment link"
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && e.metaKey) handleBuild(); }}
+              />
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-400">Tip: Be as specific as you like — timing, tone, what to say</p>
+                <div className="flex gap-2">
+                  <button onClick={handleDiscard} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">Cancel</button>
+                  <button
+                    onClick={handleBuild}
+                    disabled={!description.trim()}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Build →
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {buildState === 'building' && (
+            <div className="bg-white border border-blue-100 rounded-2xl p-6 flex items-center gap-3">
+              <div className="flex gap-1">
+                {[0, 1, 2].map(i => (
+                  <span key={i} className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+                ))}
+              </div>
+              <p className="text-sm text-gray-500">Building your automation…</p>
+            </div>
+          )}
+
+          {buildState === 'preview' && preview && (
+            <div className="bg-white border border-blue-200 rounded-2xl p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-900">Here's what we built</p>
+                <button onClick={handleDiscard} className="text-gray-400 hover:text-gray-600 transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-medium text-gray-500 block mb-1.5">When does this trigger?</label>
-                  <input
-                    className={inputCls}
-                    placeholder="e.g. Customer asks for a refund"
-                    value={newTrigger}
-                    onChange={e => setNewTrigger(e.target.value)}
-                  />
+              {/* Preview card */}
+              <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">{preview.trigger}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{preview.timing} · via WhatsApp</p>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 block mb-1.5">When to send</label>
-                  <input
-                    className={inputCls}
-                    placeholder="e.g. Immediately, 1 hr after"
-                    value={newTiming}
-                    onChange={e => setNewTiming(e.target.value)}
-                  />
-                </div>
+                {!editingPreview ? (
+                  <>
+                    <div className="bg-[#dcf8c6] rounded-xl rounded-tl-sm px-4 py-3 max-w-sm">
+                      <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+                        {previewMessage(preview.message)}
+                      </p>
+                      <p className="text-[10px] text-[#53bdeb] text-right mt-1 select-none">✓✓</p>
+                    </div>
+                    <button
+                      onClick={() => setEditingPreview(true)}
+                      className="text-xs text-blue-500 hover:text-blue-700 transition-colors"
+                    >
+                      Edit message →
+                    </button>
+                  </>
+                ) : (
+                  <div className="space-y-2">
+                    <textarea
+                      autoFocus
+                      rows={4}
+                      className="w-full border border-blue-200 rounded-xl px-3 py-2 text-sm text-gray-700 outline-none focus:ring-1 focus:ring-blue-300 resize-none bg-white"
+                      value={preview.message}
+                      onChange={e => setPreview(p => p ? { ...p, message: e.target.value } : p)}
+                    />
+                    <button onClick={() => setEditingPreview(false)} className="text-xs text-blue-500 hover:text-blue-700">Done editing</button>
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label className="text-xs font-medium text-gray-500 block mb-1.5">Message</label>
-                <textarea
-                  className={`${inputCls} resize-none`}
-                  rows={3}
-                  placeholder="Hi {name}! Your message here..."
-                  value={newMessage}
-                  onChange={e => setNewMessage(e.target.value)}
-                />
-                <p className="text-[10px] text-gray-400 mt-1">
-                  Use {['{name}', '{id}', '{product}'].map(p => (
-                    <code key={p} className="bg-gray-100 px-1 rounded mr-1">{p}</code>
-                  ))}
-                </p>
-              </div>
-
-              <div className="flex gap-2">
+              <div className="flex gap-2 pt-1">
                 <button
-                  onClick={addNew}
-                  disabled={!newTrigger.trim() || !newMessage.trim()}
-                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  onClick={handleLaunch}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
                 >
-                  Add automation
+                  Save & Launch
                 </button>
                 <button
-                  onClick={() => setBuilding(false)}
-                  className="px-4 py-2 text-gray-500 text-sm hover:text-gray-700 transition-colors"
+                  onClick={() => setBuildState('input')}
+                  className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg transition-colors"
                 >
-                  Cancel
+                  Describe again
+                </button>
+                <button onClick={handleDiscard} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors">
+                  Discard
                 </button>
               </div>
             </div>
           )}
-        </div>
 
+        </div>
       </div>
     </div>
   );
