@@ -7,6 +7,44 @@ datasource db {
   provider = "sqlite"
 }
 
+// ─── Merchants ───────────────────────────────────────────────────────────────
+
+model Merchant {
+  id               String    @id @default(cuid())
+  shopName         String
+  tagline          String    @default("")
+  slug             String    @unique
+  email            String    @unique
+  passwordHash     String
+  whatsappNumber   String    @default("")
+  instagramHandle  String    @default("")
+  tone             String    @default("warm, friendly, and helpful")
+  returnPolicy     String    @default("7-day returns accepted for unused items")
+  shippingDays     String    @default("3-5")
+  codAvailable     Boolean   @default(false)
+  discount         String    @default("5% for repeat customers")
+  onboardingDone   Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+
+  products         Product[]
+}
+
+// ─── Products ─────────────────────────────────────────────────────────────────
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  sku         String   @default("")
+  price       Float    @default(0)
+  description String   @default("")
+  inStock     Boolean  @default(true)
+  variants    String   @default("[]")  // JSON: { label: string; options: string[] }[]
+  createdAt   DateTime @default(now())
+
+  merchantId  String
+  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+}
+
 // ─── Orders ───────────────────────────────────────────────────────────────────
 
 model Order {

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const PUBLIC_PATHS = ['/api/', '/_next/', '/favicon', '/catalog'];
+const PUBLIC_PATHS = ['/api/', '/_next/', '/favicon', '/catalog', '/signup', '/onboarding', '/storefront'];
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Skip auth for API routes, Next.js internals, and assets
@@ -12,11 +12,15 @@ export function middleware(req: NextRequest) {
   // If no password set, allow through (local dev)
   if (!password) return NextResponse.next();
 
-  // Check cookie
+  // Check admin cookie
   const auth = req.cookies.get('auth')?.value;
   if (auth === password) return NextResponse.next();
 
-  // Check if this is the login form submission
+  // Check merchant session cookie (set by /api/auth/merchant-login)
+  const merchantId = req.cookies.get('merchant_id')?.value;
+  if (merchantId) return NextResponse.next();
+
+  // Check if this is the login page
   if (pathname === '/login') return NextResponse.next();
 
   // Redirect to login

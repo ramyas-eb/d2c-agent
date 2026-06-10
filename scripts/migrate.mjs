@@ -135,6 +135,39 @@ const STATEMENTS = [
     FOREIGN KEY ("workflowId") REFERENCES "Workflow"("id") ON DELETE CASCADE,
     FOREIGN KEY ("orderId")    REFERENCES "Order"("id")    ON DELETE SET NULL
   )`,
+
+  // Merchant
+  `CREATE TABLE IF NOT EXISTS "Merchant" (
+    "id"              TEXT PRIMARY KEY NOT NULL,
+    "shopName"        TEXT NOT NULL,
+    "tagline"         TEXT NOT NULL DEFAULT '',
+    "slug"            TEXT NOT NULL UNIQUE,
+    "email"           TEXT NOT NULL UNIQUE,
+    "passwordHash"    TEXT NOT NULL,
+    "whatsappNumber"  TEXT NOT NULL DEFAULT '',
+    "instagramHandle" TEXT NOT NULL DEFAULT '',
+    "tone"            TEXT NOT NULL DEFAULT 'warm, friendly, and helpful',
+    "returnPolicy"    TEXT NOT NULL DEFAULT '7-day returns accepted for unused items',
+    "shippingDays"    TEXT NOT NULL DEFAULT '3-5',
+    "codAvailable"    INTEGER NOT NULL DEFAULT 0,
+    "discount"        TEXT NOT NULL DEFAULT '5% for repeat customers',
+    "onboardingDone"  INTEGER NOT NULL DEFAULT 0,
+    "createdAt"       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // Product (per-merchant)
+  `CREATE TABLE IF NOT EXISTS "Product" (
+    "id"          TEXT PRIMARY KEY NOT NULL,
+    "name"        TEXT NOT NULL,
+    "sku"         TEXT NOT NULL DEFAULT '',
+    "price"       REAL NOT NULL DEFAULT 0,
+    "description" TEXT NOT NULL DEFAULT '',
+    "inStock"     INTEGER NOT NULL DEFAULT 1,
+    "variants"    TEXT NOT NULL DEFAULT '[]',
+    "createdAt"   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "merchantId"  TEXT NOT NULL,
+    FOREIGN KEY ("merchantId") REFERENCES "Merchant"("id") ON DELETE CASCADE
+  )`,
 ];
 
 // ── Run ───────────────────────────────────────────────────────────────────────

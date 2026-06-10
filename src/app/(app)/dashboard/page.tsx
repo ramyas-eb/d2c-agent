@@ -7,7 +7,7 @@ import {
   Package, CheckCircle, Truck, Clock, AlertCircle, Camera, MessageCircle,
   ChevronDown, ChevronUp, Zap, CreditCard, Loader2, CheckCheck, Check,
   Webhook, User, FlaskConical, ChevronRight, X, ExternalLink, Copy, Phone, Edit2,
-  Search, Download, RefreshCw, FileText
+  Search, Download, RefreshCw, FileText, TrendingUp, ArrowUpRight, Inbox,
 } from 'lucide-react';
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -366,8 +366,13 @@ function OrderDetailModal({ order, onClose }: { order: Order | null; onClose: ()
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Payment mode</p>
-                      <span className="inline-block text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full font-medium capitalize">
-                        {order.paymentMode}
+                      <span className={cn(
+                        'inline-block text-xs px-2 py-0.5 rounded-full font-semibold capitalize',
+                        order.paymentMode === 'cod'
+                          ? 'bg-orange-100 text-orange-700'
+                          : 'bg-gray-100 text-gray-700'
+                      )}>
+                        {order.paymentMode === 'cod' ? '📦 Cash on Delivery' : order.paymentMode}
                       </span>
                     </div>
                   </div>
@@ -663,9 +668,13 @@ function OrderRow({ order, onViewDetail, selected, onSelect }: {
 
         {/* Order info */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium text-gray-900">{order.customerName}</span>
-            <span className="text-xs text-gray-400">{order.id}</span>
+            {order.paymentMode === 'cod' && (
+              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-semibold">
+                COD
+              </span>
+            )}
             {order.partial && !order.partial.balancePaid && (
               <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-medium">
                 Partial — ₹{order.partial.balanceDue.toLocaleString('en-IN')} due
@@ -860,9 +869,243 @@ function SandboxBanner({ orders, onSimulate }: { orders: Order[]; onSimulate: (i
   );
 }
 
+// ─── Sparkline ────────────────────────────────────────────────────────
+function Sparkline({ values }: { values: number[] }) {
+  if (values.length < 2) return <div className="h-10" />;
+  const max = Math.max(...values, 1);
+  const W = 200, H = 40;
+  const pts = values.map((v, i) => ({
+    x: (i / (values.length - 1)) * W,
+    y: H - (v / max) * (H - 6) - 3,
+  }));
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 1; i < pts.length; i++) {
+    const cx = (pts[i - 1].x + pts[i].x) / 2;
+    d += ` C ${cx} ${pts[i - 1].y} ${cx} ${pts[i].y} ${pts[i].x} ${pts[i].y}`;
+  }
+  const fill = `${d} L ${pts[pts.length - 1].x} ${H} L ${pts[0].x} ${H} Z`;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-10">
+      <defs>
+        <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="currentColor" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="currentColor" stopOpacity="0.01" />
+        </linearGradient>
+      </defs>
+      <path d={fill} fill="url(#sg)" />
+      <path d={d} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// ─── Summary Tab ──────────────────────────────────────────────────────
+function SummaryTab({ orders }: { orders: Order[] }) {
+  const today = new Date();
+
+  const last7 = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(); d.setDate(today.getDate() - (6 - i));
+    return orders
+      .filter(o => o.paidAt && new Date(o.paidAt).toDateString() === d.toDateString())
+      .reduce((s, o) => s + o.amount, 0);
+  });
+
+  const dayLabels = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(); d.setDate(today.getDate() - (6 - i));
+    return i === 6 ? 'Today' : d.toLocaleDateString('en-IN', { weekday: 'short' });
+  });
+
+  const weekRevenue = last7.reduce((s, v) => s + v, 0);
+  const todayRevenue = last7[6];
+  const todayOrders = orders.filter(o => o.paidAt && new Date(o.paidAt).toDateString() === today.toDateString()).length;
+  const toShip = orders.filter(o => o.status === 'payment_received' || o.status === 'processing').length;
+  const shipped = orders.filter(o => o.status === 'shipped' || o.status === 'delivered').length;
+
+  const productMap: Record<string, { count: number; revenue: number }> = {};
+  orders.forEach(o => {
+    if (!productMap[o.product]) productMap[o.product] = { count: 0, revenue: 0 };
+    productMap[o.product].count++;
+    productMap[o.product].revenue += o.amount;
+  });
+  const topProducts = Object.entries(productMap).sort((a, b) => b[1].count - a[1].count).slice(0, 3);
+
+  return (
+    <div className="space-y-5">
+      {/* Revenue hero + sparkline */}
+      <div className="bg-white border border-gray-200 rounded-2xl p-6">
+        <div className="flex items-start justify-between mb-1">
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">This week</p>
+            <p className="text-4xl font-bold text-gray-900 mt-1 leading-none">{formatCurrency(weekRevenue)}</p>
+            <p className="text-sm text-gray-500 mt-1.5">
+              Today: <span className="font-semibold text-gray-800">{formatCurrency(todayRevenue)}</span>
+              {todayOrders > 0 && <span className="text-gray-400 ml-1.5">· {todayOrders} {todayOrders === 1 ? 'order' : 'orders'}</span>}
+            </p>
+          </div>
+          <div className="text-indigo-400">
+            <TrendingUp className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="mt-4 text-indigo-500">
+          <Sparkline values={last7} />
+        </div>
+        <div className="flex justify-between mt-1">
+          {dayLabels.map((l, i) => (
+            <span key={i} className={cn('text-[10px]', i === 6 ? 'text-indigo-600 font-semibold' : 'text-gray-400')}>{l}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* Stat row */}
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          { label: 'Today\'s revenue', value: formatCurrency(todayRevenue), sub: `${todayOrders} orders paid`, color: 'text-gray-900' },
+          { label: 'To ship', value: String(toShip), sub: 'paid, awaiting shipment', color: toShip > 0 ? 'text-amber-600' : 'text-gray-900' },
+          { label: 'Shipped', value: String(shipped), sub: 'all time', color: 'text-gray-900' },
+        ].map(({ label, value, sub, color }) => (
+          <div key={label} className="bg-white border border-gray-200 rounded-xl p-4">
+            <p className="text-xs text-gray-500">{label}</p>
+            <p className={cn('text-2xl font-bold mt-1', color)}>{value}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Top products */}
+      {topProducts.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Top products</p>
+          <div className="space-y-3">
+            {topProducts.map(([name, data], i) => (
+              <div key={name} className="flex items-center gap-3">
+                <span className="text-xs font-bold text-gray-300 w-4">#{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{name}</p>
+                  <div className="mt-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-indigo-400 rounded-full"
+                      style={{ width: `${(data.count / (topProducts[0][1].count || 1)) * 100}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-xs font-semibold text-gray-700">{formatCurrency(data.revenue)}</p>
+                  <p className="text-[10px] text-gray-400">{data.count} sold</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Needs Action Tab ─────────────────────────────────────────────────
+function ActionCard({ order, actionLabel, actionColor, onAction }: {
+  order: Order;
+  actionLabel: string;
+  actionColor: string;
+  onAction: () => void;
+}) {
+  const ms = Date.now() - new Date(order.createdAt).getTime();
+  const h = Math.floor(ms / 3600000);
+  const age = h < 1 ? 'just now' : h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-4">
+      <div className={cn('w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0',
+        order.source === 'instagram' ? 'bg-pink-100' : 'bg-green-100'
+      )}>
+        {order.source === 'instagram'
+          ? <Camera className="w-4 h-4 text-pink-500" />
+          : <MessageCircle className="w-4 h-4 text-green-500" />}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold text-gray-900">{order.customerName}</p>
+          {order.paymentMode === 'cod' && (
+            <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full font-semibold">COD</span>
+          )}
+        </div>
+        <p className="text-xs text-gray-500 truncate mt-0.5">
+          {order.product} · {formatCurrency(order.amount)}
+          <span className="text-gray-300 mx-1.5">·</span>
+          <span className="text-gray-400">{age}</span>
+        </p>
+      </div>
+
+      <button
+        onClick={onAction}
+        className={cn('text-xs text-white font-semibold px-3 py-1.5 rounded-lg transition-colors flex-shrink-0', actionColor)}
+      >
+        {actionLabel}
+      </button>
+    </div>
+  );
+}
+
+function NeedsActionTab({ orders, onViewDetail }: {
+  orders: Order[];
+  onViewDetail: (o: Order) => void;
+}) {
+  const packShip = orders.filter(o =>
+    (o.status === 'payment_received' || o.status === 'processing') && !o.shipment
+  );
+  const followUp = orders.filter(o => o.status === 'pending_payment');
+
+  if (packShip.length === 0 && followUp.length === 0) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-4xl mb-3">🎉</p>
+        <p className="text-base font-semibold text-gray-900">All caught up!</p>
+        <p className="text-sm text-gray-400 mt-1">Nothing needs your attention right now.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-7">
+      {packShip.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2.5 mb-3">
+            <div className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
+            <p className="text-sm font-semibold text-gray-900">Pack & Ship</p>
+            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">{packShip.length}</span>
+            <p className="text-xs text-gray-400">Paid — needs shipment today</p>
+          </div>
+          <div className="space-y-2">
+            {packShip.map(o => (
+              <ActionCard key={o.id} order={o} actionLabel="Ship now →" actionColor="bg-indigo-600 hover:bg-indigo-700" onAction={() => onViewDetail(o)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {followUp.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2.5 mb-3">
+            <div className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0" />
+            <p className="text-sm font-semibold text-gray-900">Follow up</p>
+            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-semibold">{followUp.length}</span>
+            <p className="text-xs text-gray-400">Payment link sent, not paid yet</p>
+          </div>
+          <div className="space-y-2">
+            {followUp.map(o => (
+              <ActionCard key={o.id} order={o} actionLabel="Remind →" actionColor="bg-orange-500 hover:bg-orange-600" onAction={() => onViewDetail(o)} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { orders, simulatePayment, loadOrders } = useOrderStore();
+  const [tab, setTab] = useState<'summary' | 'needs-action' | 'orders'>('summary');
   const [filter, setFilter] = useState<string>('all');
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
 
@@ -917,12 +1160,9 @@ export default function DashboardPage() {
   const selectAll = () => setSelectedIds(new Set(displayedOrders.map(o => o.id)));
   const clearAll = () => setSelectedIds(new Set());
 
-  const todayGMV = orders
-    .filter(o => o.paidAt && new Date(o.paidAt).toDateString() === new Date().toDateString())
-    .reduce((s, o) => s + o.amount, 0);
-
-  const pendingCount = orders.filter(o => o.status === 'pending_payment').length;
-  const automatedToday = orders.filter(o => o.whatsappConfirmationSent && o.paidAt && new Date(o.paidAt).toDateString() === new Date().toDateString()).length;
+  const needsActionCount =
+    orders.filter(o => (o.status === 'payment_received' || o.status === 'processing') && !o.shipment).length +
+    orders.filter(o => o.status === 'pending_payment').length;
 
   return (
     <>
@@ -930,8 +1170,8 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Orders</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Today, {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          <h1 className="text-xl font-semibold text-gray-900">Dashboard</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
         </div>
         <button
           onClick={refresh}
@@ -939,134 +1179,147 @@ export default function DashboardPage() {
           className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
         >
           <RefreshCw className={cn('w-3.5 h-3.5', refreshing && 'animate-spin')} />
-          <span>
-            {refreshing ? 'Refreshing…' : `Updated ${Math.floor((Date.now() - lastRefreshed.getTime()) / 1000)}s ago`}
-          </span>
+          <span>{refreshing ? 'Refreshing…' : `Updated ${Math.floor((Date.now() - lastRefreshed.getTime()) / 1000)}s ago`}</span>
         </button>
       </div>
 
-      {/* Sandbox banner */}
-      <SandboxBanner orders={orders} onSimulate={simulatePayment} />
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-xs text-gray-500">Today's GMV</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(todayGMV)}</p>
-          <p className="text-xs text-green-600 mt-1">via Razorpay</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-xs text-gray-500">Pending Payment</p>
-          <p className="text-2xl font-bold text-amber-600 mt-1">{pendingCount}</p>
-          <p className="text-xs text-gray-400 mt-1">links awaiting payment</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-xs text-gray-500">Auto-confirmed today</p>
-          <p className="text-2xl font-bold text-blue-600 mt-1">{automatedToday}</p>
-          <p className="text-xs text-gray-400 mt-1">WhatsApp sent · 0 manual</p>
-        </div>
-      </div>
-
-      {/* Filter tabs with select-all checkbox */}
-      <div className="flex items-center gap-2 mb-4">
-        <input
-          type="checkbox"
-          checked={displayedOrders.length > 0 && selectedIds.size === displayedOrders.length}
-          onChange={() => selectedIds.size === displayedOrders.length ? clearAll() : selectAll()}
-          className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 mr-2 cursor-pointer"
-        />
-        <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-1 w-fit">
-          {(['all', 'pending_payment', 'payment_received', 'shipped'] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => setFilter(s)}
-              className={cn(
-                'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                filter === s ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-              )}
-            >
-              {s === 'all' ? 'All' : statusConfig[s]?.label}
-              <span className={cn('ml-1.5 text-xs', filter === s ? 'text-blue-200' : 'text-gray-400')}>
-                {counts[s as keyof typeof counts]}
+      {/* Top-level tabs */}
+      <div className="flex items-center border-b border-gray-200 mb-6 gap-1">
+        {([
+          { id: 'summary' as const, label: 'Summary', icon: TrendingUp },
+          { id: 'needs-action' as const, label: 'Needs Action', icon: Inbox, badge: needsActionCount },
+          { id: 'orders' as const, label: 'All Orders', icon: Package, badge: orders.length },
+        ]).map(({ id, label, icon: Icon, badge }) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
+              tab === id
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700',
+            )}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            {label}
+            {badge !== undefined && badge > 0 && (
+              <span className={cn(
+                'text-xs px-1.5 py-0.5 rounded-full font-semibold',
+                tab === id
+                  ? id === 'needs-action' ? 'bg-red-100 text-red-600' : 'bg-indigo-100 text-indigo-600'
+                  : id === 'needs-action' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500',
+              )}>
+                {badge}
               </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Search bar */}
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search orders by name, ID, or product…"
-          className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 bg-white"
-        />
-        {search && (
-          <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-            <X className="w-3.5 h-3.5" />
+            )}
           </button>
-        )}
+        ))}
       </div>
 
-      {/* Bulk action bar */}
-      {selectedIds.size > 0 && (
-        <div className="mb-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 flex items-center gap-3">
-          <span className="text-xs font-semibold text-blue-800">{selectedIds.size} selected</span>
-          <div className="flex items-center gap-2 ml-auto">
-            <button onClick={clearAll} className="text-xs text-gray-500 hover:text-gray-700">Deselect all</button>
-            <button onClick={selectAll} className="text-xs text-blue-600 hover:text-blue-800">Select all ({displayedOrders.length})</button>
-            <div className="w-px h-3 bg-gray-300" />
-            <button
-              onClick={() => {
-                selectedIds.forEach(id => {
-                  fetch(`/api/orders/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'shipped' }) }).catch(console.warn);
-                });
-                clearAll();
-              }}
-              className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1"
-            >
-              <Truck className="w-3 h-3" /> Mark shipped
-            </button>
-            <button
-              onClick={() => {
-                const rows = [['Order ID', 'Customer', 'Product', 'Amount', 'Status', 'Date']];
-                [...selectedIds].forEach(id => {
-                  const o = orders.find(x => x.id === id);
-                  if (o) rows.push([o.id, o.customerName, o.product, o.amount.toString(), o.status, o.createdAt]);
-                });
-                const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
-                const blob = new Blob([csv], { type: 'text/csv' });
-                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'orders-export.csv'; a.click();
-                URL.revokeObjectURL(a.href);
-                clearAll();
-              }}
-              className="text-xs bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1"
-            >
-              <Download className="w-3 h-3" /> Export CSV
-            </button>
-          </div>
-        </div>
+      {/* Tab content */}
+      {tab === 'summary' && <SummaryTab orders={orders} />}
+
+      {tab === 'needs-action' && (
+        <NeedsActionTab orders={orders} onViewDetail={setDetailOrder} />
       )}
 
-      {/* Orders */}
-      <div className="space-y-3">
-        {displayedOrders.length === 0 ? (
-          <div className="text-center py-12 text-gray-400 text-sm">No orders in this category</div>
-        ) : (
-          displayedOrders.map(order => (
-            <OrderRow
-              key={order.id}
-              order={order}
-              onViewDetail={(o) => setDetailOrder(o)}
-              selected={selectedIds.has(order.id)}
-              onSelect={toggleSelect}
+      {tab === 'orders' && (
+        <>
+          <SandboxBanner orders={orders} onSimulate={simulatePayment} />
+
+          {/* Filter tabs */}
+          <div className="flex items-center gap-2 mb-4">
+            <input
+              type="checkbox"
+              checked={displayedOrders.length > 0 && selectedIds.size === displayedOrders.length}
+              onChange={() => selectedIds.size === displayedOrders.length ? clearAll() : selectAll()}
+              className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 mr-2 cursor-pointer"
             />
-          ))
-        )}
-      </div>
+            <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-1 w-fit">
+              {(['all', 'pending_payment', 'payment_received', 'shipped'] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setFilter(s)}
+                  className={cn(
+                    'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                    filter === s ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+                  )}
+                >
+                  {s === 'all' ? 'All' : statusConfig[s]?.label}
+                  <span className={cn('ml-1.5 text-xs', filter === s ? 'text-blue-200' : 'text-gray-400')}>
+                    {counts[s as keyof typeof counts]}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by name, order ID, or product…"
+              className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 bg-white"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Bulk actions */}
+          {selectedIds.size > 0 && (
+            <div className="mb-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 flex items-center gap-3">
+              <span className="text-xs font-semibold text-blue-800">{selectedIds.size} selected</span>
+              <div className="flex items-center gap-2 ml-auto">
+                <button onClick={clearAll} className="text-xs text-gray-500 hover:text-gray-700">Deselect all</button>
+                <button onClick={selectAll} className="text-xs text-blue-600 hover:text-blue-800">Select all ({displayedOrders.length})</button>
+                <div className="w-px h-3 bg-gray-300" />
+                <button
+                  onClick={() => { selectedIds.forEach(id => { fetch(`/api/orders/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'shipped' }) }).catch(console.warn); }); clearAll(); }}
+                  className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1"
+                >
+                  <Truck className="w-3 h-3" /> Mark shipped
+                </button>
+                <button
+                  onClick={() => {
+                    const rows = [['Order ID', 'Customer', 'Product', 'Amount', 'Status', 'Date']];
+                    [...selectedIds].forEach(id => { const o = orders.find(x => x.id === id); if (o) rows.push([o.id, o.customerName, o.product, o.amount.toString(), o.status, o.createdAt]); });
+                    const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'orders-export.csv'; a.click();
+                    URL.revokeObjectURL(a.href); clearAll();
+                  }}
+                  className="text-xs bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1"
+                >
+                  <Download className="w-3 h-3" /> Export CSV
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Order list */}
+          <div className="space-y-3">
+            {displayedOrders.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 text-sm">No orders found</div>
+            ) : (
+              displayedOrders.map(order => (
+                <OrderRow
+                  key={order.id}
+                  order={order}
+                  onViewDetail={setDetailOrder}
+                  selected={selectedIds.has(order.id)}
+                  onSelect={toggleSelect}
+                />
+              ))
+            )}
+          </div>
+        </>
+      )}
     </div>
     <OrderDetailModal order={detailOrder} onClose={() => setDetailOrder(null)} />
     </>
