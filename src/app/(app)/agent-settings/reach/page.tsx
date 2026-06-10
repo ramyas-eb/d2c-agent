@@ -163,31 +163,39 @@ function AutomationCard({
 
 type BuildState = 'idle' | 'input' | 'building' | 'preview';
 
-function buildFromDescription(desc: string): Omit<Automation, 'id'> {
+function buildFallback(desc: string): Omit<Automation, 'id'> {
   const lower = desc.toLowerCase();
-
-  // Extract timing hint from description
-  const timingMatch = lower.match(/(\d+)\s*(hr|hour|min|minute|day)/);
-  const timing = timingMatch
-    ? `${timingMatch[1]} ${timingMatch[2]}${Number(timingMatch[1]) > 1 ? 's' : ''} after`
-    : 'Immediately';
-
-  // Derive a short trigger label
-  const triggerKeywords: [RegExp, string][] = [
-    [/refund|return/, 'Customer requests refund'],
-    [/review|feedback/, 'Order delivered'],
-    [/abandon|cart/, 'Cart abandoned'],
-    [/birthday|anniversar/, 'Customer birthday'],
-    [/reorder|buy again|repurchase/, 'Post-purchase follow-up'],
-    [/referral|refer a friend/, 'Customer referral'],
+  const wordNums: Record<string, number> = { one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10 };
+  let timing = 'Immediately';
+  const numMatch = lower.match(/(\d+)\s*(hr|hour|min|minute|day)/);
+  const wordMatch = lower.match(/(one|two|three|four|five|six|seven|eight|nine|ten)\s*(hr|hour|min|minute|day)/);
+  if (numMatch) {
+    const n = Number(numMatch[1]);
+    const u = numMatch[2].startsWith('min') ? 'min' : numMatch[2].startsWith('day') ? 'day' : 'hr';
+    timing = `${n} ${u}${n > 1 ? 's' : ''} after`;
+  } else if (wordMatch) {
+    const n = wordNums[wordMatch[1]];
+    const u = wordMatch[2].startsWith('min') ? 'min' : wordMatch[2].startsWith('day') ? 'day' : 'hr';
+    timing = `${n} ${u}${n > 1 ? 's' : ''} after`;
+  }
+  const trigMap: [RegExp, string, string][] = [
+    [/payment.*confirm|confirm.*payment|paid/, 'Payment confirmed', `Hi {name}! 🎉 We've received your payment for order {id}. We're on it — you'll get a shipping update soon!`],
+    [/ship|dispatch/, 'Order shipped', `Great news {name}! 🚚 Your order {id} has been dispatched. Track it here: {tracking_link}`],
+    [/deliver/, 'Order delivered', `Hi {name}! Hope you're loving your order 💛 A quick review would mean the world to us!`],
+    [/refund|return/, 'Customer requests refund', `Hi {name}! We've initiated your refund for order {id}. It should reflect in 3–5 business days 🙏`],
+    [/abandon|cart/, 'Cart abandoned', `Hey {name}! 👋 You left something in your cart. Still interested? Reply and I'll help you finish the order!`],
+    [/review|feedback/, 'Order delivered', `Hi {name}! Hope you're loving your order 💛 A quick review would mean the world to us!`],
+    [/birthday/, 'Customer birthday', `Happy Birthday {name}! 🎂 Here's a little gift from us — 10% off your next order. Use code BDAY10!`],
+    [/stock|restock/, 'Item back in stock', `Good news {name}! {product} is back in stock 🎉 Want to grab one? Reply "yes" and I'll send the link!`],
   ];
-  const matched = triggerKeywords.find(([re]) => re.test(lower));
-  const trigger = matched ? matched[1] : desc.split('.')[0].trim();
-
-  // Build the WA message
-  const message = `Hi {name}! 👋\n\n${desc.trim().replace(/^(when|if|after)\s+\S+\s+/i, '')}`;
-
-  return { trigger, timing, message, enabled: true };
+  const match = trigMap.find(([re]) => re.test(lower));
+  if (match) return { trigger: match[1], timing, message: match[2], enabled: true };
+  return {
+    trigger: desc.replace(/^when\s+/i, '').replace(/,.*$/, '').trim().slice(0, 40),
+    timing,
+    message: `Hi {name}! 👋 Just a quick update on your order {id}. Let us know if you need anything!`,
+    enabled: true,
+  };
 }
 
 export default function ReachPage() {
@@ -202,13 +210,26 @@ export default function ReachPage() {
   const save = (id: string, message: string) =>
     setAutomations(prev => prev.map(a => a.id === id ? { ...a, message } : a));
 
-  const handleBuild = () => {
+  const handleBuild = async () => {
     if (!description.trim()) return;
     setBuildState('building');
-    setTimeout(() => {
-      setPreview(buildFromDescription(description));
-      setBuildState('preview');
-    }, 800);
+    try {
+      const res = await fetch('/api/build-automation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description }),
+      });
+      const data = await res.json();
+      if (data.trigger && data.message) {
+        setPreview({ trigger: data.trigger, timing: data.timing ?? 'Immediately', message: data.message, enabled: true });
+      } else {
+        // fallback: use local heuristics
+        setPreview(buildFallback(description));
+      }
+    } catch {
+      setPreview(buildFallback(description));
+    }
+    setBuildState('preview');
   };
 
   const handleLaunch = () => {
@@ -280,7 +301,7 @@ export default function ReachPage() {
                 autoFocus
                 rows={3}
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:ring-1 focus:ring-blue-300 bg-gray-50 resize-none leading-relaxed"
-                placeholder="e.g. When a customer hasn't paid after 3 hours, send them a gentle reminder with a new payment link"
+                placeholder="e.g. When a customer leaves a 5-star review, send them a thank you and a 10% discount code for their next order"
                 value={description}
                 onChange={e => setDescription(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && e.metaKey) handleBuild(); }}
