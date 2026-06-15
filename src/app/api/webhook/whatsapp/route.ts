@@ -37,7 +37,16 @@ export async function GET(req: NextRequest) {
     console.log('[whatsapp-webhook] verified');
     return new Response(challenge ?? '', { status: 200 });
   }
-  return Response.json({ error: 'Forbidden' }, { status: 403 });
+  // Temporary debug — remove after fixing
+  return Response.json({
+    error: 'Forbidden',
+    debug: {
+      mode,
+      token_received: token,
+      env_var_set: !!process.env.WHATSAPP_VERIFY_TOKEN,
+      env_var_length: process.env.WHATSAPP_VERIFY_TOKEN?.length ?? 0,
+    },
+  }, { status: 403 });
 }
 
 // ── POST: incoming messages ────────────────────────────────────────────
