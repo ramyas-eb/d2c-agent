@@ -147,7 +147,7 @@ export async function runAgent({
 
     if (process.env.ANTHROPIC_BASE_URL && process.env.ANTHROPIC_DEPLOYMENT) {
       // Azure-hosted Anthropic endpoint
-      const url = `${process.env.ANTHROPIC_BASE_URL.replace(/\/$/, '')}/deployments/${process.env.ANTHROPIC_DEPLOYMENT}/messages?api-version=2024-10-01-preview`;
+      const url = `${process.env.ANTHROPIC_BASE_URL.replace(/\/$/, '')}/messages?api-version=2024-10-01-preview`;
       const res = await fetch(url, {
         method: 'POST',
         headers: {
