@@ -142,24 +142,39 @@ export async function runAgent({
   }
 
   try {
-    const isAzure = !!process.env.ANTHROPIC_BASE_URL;
-    const client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY!,
-      ...(isAzure && {
-        baseURL: `${process.env.ANTHROPIC_BASE_URL}/deployments/${process.env.ANTHROPIC_DEPLOYMENT}`,
-        defaultHeaders: { 'api-key': process.env.ANTHROPIC_API_KEY! },
-        defaultQuery: { 'api-version': '2024-10-01-preview' },
-      }),
-    });
-    const model = process.env.ANTHROPIC_DEPLOYMENT || 'claude-haiku-4-5-20251001';
-    const response = await client.messages.create({
-      model,
-      max_tokens: 400,
-      system: buildSystemPrompt(products, settings),
-      messages: normalized,
-    });
+    let text = '';
+    const systemPrompt = buildSystemPrompt(products, settings);
 
-    const text = response.content[0].type === 'text' ? response.content[0].text.trim() : '';
+    if (process.env.ANTHROPIC_BASE_URL && process.env.ANTHROPIC_DEPLOYMENT) {
+      // Azure-hosted Anthropic endpoint
+      const url = `${process.env.ANTHROPIC_BASE_URL.replace(/\/$/, '')}/deployments/${process.env.ANTHROPIC_DEPLOYMENT}/messages?api-version=2024-10-01-preview`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'api-key': process.env.ANTHROPIC_API_KEY!,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: process.env.ANTHROPIC_DEPLOYMENT,
+          max_tokens: 400,
+          system: systemPrompt,
+          messages: normalized,
+        }),
+      });
+      const data = await res.json() as { content?: Array<{ type: string; text: string }> };
+      text = data.content?.[0]?.type === 'text' ? (data.content[0].text ?? '').trim() : '';
+    } else {
+      // Direct Anthropic API
+      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+      const response = await client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 400,
+        system: systemPrompt,
+        messages: normalized,
+      });
+      text = response.content[0].type === 'text' ? response.content[0].text.trim() : '';
+    }
     const clean = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
 
     try {
