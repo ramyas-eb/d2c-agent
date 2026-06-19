@@ -162,7 +162,12 @@ export async function runAgent({
           messages: normalized,
         }),
       });
-      const data = await res.json() as { content?: Array<{ type: string; text: string }> };
+      const data = await res.json();
+      console.log('[runAgent] Azure raw response:', JSON.stringify(data).slice(0, 300));
+      if (!res.ok) {
+        console.error('[runAgent] Azure error:', res.status, JSON.stringify(data));
+        return { message: null, send_payment_link: false, send_cod_order: false, amount: 0, delivery_address: '', fallback: true };
+      }
       text = data.content?.[0]?.type === 'text' ? (data.content[0].text ?? '').trim() : '';
     } else {
       // Direct Anthropic API
