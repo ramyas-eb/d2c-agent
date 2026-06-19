@@ -142,9 +142,18 @@ export async function runAgent({
   }
 
   try {
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const isAzure = !!process.env.ANTHROPIC_BASE_URL;
+    const client = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY!,
+      ...(isAzure && {
+        baseURL: `${process.env.ANTHROPIC_BASE_URL}/deployments/${process.env.ANTHROPIC_DEPLOYMENT}`,
+        defaultHeaders: { 'api-key': process.env.ANTHROPIC_API_KEY! },
+        defaultQuery: { 'api-version': '2024-10-01-preview' },
+      }),
+    });
+    const model = process.env.ANTHROPIC_DEPLOYMENT || 'claude-haiku-4-5-20251001';
     const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model,
       max_tokens: 400,
       system: buildSystemPrompt(products, settings),
       messages: normalized,
