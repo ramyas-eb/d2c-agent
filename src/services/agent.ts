@@ -147,7 +147,10 @@ export async function runAgent({
 
     if (process.env.ANTHROPIC_BASE_URL && process.env.ANTHROPIC_DEPLOYMENT) {
       // Azure-hosted Anthropic endpoint
-      const url = `${process.env.ANTHROPIC_BASE_URL.replace(/\/$/, '')}/messages?api-version=2024-10-01-preview`;
+      const base = process.env.ANTHROPIC_BASE_URL.replace(/\/$/, '');
+      const deployment = process.env.ANTHROPIC_DEPLOYMENT;
+      const url = `${base}/deployments/${deployment}/messages?api-version=2024-10-01-preview`;
+      console.log('[runAgent] Azure URL:', url);
       const res = await fetch(url, {
         method: 'POST',
         headers: {
@@ -156,7 +159,6 @@ export async function runAgent({
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: process.env.ANTHROPIC_DEPLOYMENT,
           max_tokens: 400,
           system: systemPrompt,
           messages: normalized,
