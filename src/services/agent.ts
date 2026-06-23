@@ -145,43 +145,21 @@ export async function runAgent({
     let text = '';
     const systemPrompt = buildSystemPrompt(products, settings);
 
-    if (process.env.ANTHROPIC_BASE_URL && process.env.ANTHROPIC_DEPLOYMENT) {
-      // Azure-hosted Anthropic endpoint
-      const base = process.env.ANTHROPIC_BASE_URL.replace(/\/$/, '');
-      const deployment = process.env.ANTHROPIC_DEPLOYMENT;
-      const url = `${base}/deployments/${deployment}/messages?api-version=2024-10-01-preview`;
-      console.log('[runAgent] Azure URL:', url);
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'api-key': process.env.ANTHROPIC_API_KEY!,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          max_tokens: 400,
-          system: systemPrompt,
-          messages: normalized,
-        }),
-      });
-      const data = await res.json();
-      console.log('[runAgent] Azure raw response:', JSON.stringify(data).slice(0, 300));
-      if (!res.ok) {
-        console.error('[runAgent] Azure error:', res.status, JSON.stringify(data));
-        return { message: null, send_payment_link: false, send_cod_order: false, amount: 0, delivery_address: '', fallback: true };
-      }
-      text = data.content?.[0]?.type === 'text' ? (data.content[0].text ?? '').trim() : '';
-    } else {
-      // Direct Anthropic API
-      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
-      const response = await client.messages.create({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 400,
-        system: systemPrompt,
-        messages: normalized,
-      });
-      text = response.content[0].type === 'text' ? response.content[0].text.trim() : '';
+    // Use custom base URL if set (LiteLLM proxy or similar), otherwise hit Anthropic directly
+    const clientOptions: ConstructorParameters<typeof Anthropic>[0] = {
+      apiKey: process.env.ANTHROPIC_API_KEY!,
+    };
+    if (process.env.ANTHROPIC_BASE_URL) {
+      clientOptions.baseURL = process.env.ANTHROPIC_BASE_URL;
     }
+    const client = new Anthropic(clientOptions);
+    const response = await client.messages.create({
+      model: process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5-20251001',
+      max_tokens: 400,
+      system: systemPrompt,
+      messages: normalized,
+    });
+    text = response.content[0].type === 'text' ? response.content[0].text.trim() : '';
     const clean = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
 
     try {
